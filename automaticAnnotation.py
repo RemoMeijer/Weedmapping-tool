@@ -2,10 +2,10 @@ import cv2
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from random import randint
+import pyautogui
 
-lower_green = (27, 35, 24) # finetune this
-upper_green = (100, 250, 150)
+lower_green = (29, 40, 20) # finetune this
+upper_green = (70, 255, 80)
 
 def calibrateGreenValues(img):
     img = cv2.imread(f'{img}')
@@ -46,50 +46,59 @@ def loop_dir_and_annotate(images_dir):
         "weed": 1,  # Assign class ID 1 for weed
     }
 
+
+    first_image = True
+
     for img_name in os.listdir(img_path):
         annotations = []
+        print(img_name)
         img = cv2.imread(f'{img_path}/{img_name}')
 
+        if first_image:
+            cv2.imshow(f"Display image", img)
+            cv2.imshow(f"HSV", img)
+            cv2.waitKey(15)
+            first_image = False
+
+        # Convert to HSV
         processed_mask, _ = convertHSV(img)
+        cv2.imshow(f"HSV", processed_mask)
         height, width, _ = img.shape
 
         # Find contours
-        contours, _ = cv2.findContours(processed_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(processed_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         contours = list(contours)
 
         # Area threshold
-        min_area = 80
+        min_area = 100
+        contour_count = 0
 
-        # Create a new mask for only large blobs
-        large_blobs_mask = np.zeros_like(processed_mask)
-        contour_count = -1
         for cnt in contours:
+            # If contour above threshold
             if cv2.contourArea(cnt) > min_area:
                 img_copy = img.copy()
-                contour_count += 1
-
-                cv2.drawContours(img_copy, [cnt], -1, (0, 255, 0), thickness=2)
-                cv2.imshow(f"{img_name}", img_copy)
-                if contour_count == 0:
-                    cv2.waitKey(0)
-
+                cv2.drawContours(img_copy, [cnt], -1, (0, 255, 0), thickness=1)
+                cv2.imshow(f"Display image", img_copy)
                 cv2.waitKey(1)
 
-
                 class_mapping = {"2": "weed", "1": "crop"}
-                user_class = class_mapping.get(input("Enter class for this contour (crop 1 /weed 2): ").strip())
 
+                # User decision if weed or crop
+                user_class = class_mapping.get(input("Enter class for this contour (crop 1 / weed 2 / other 3): ").strip())
+
+                # Remove if other
                 if user_class is None:
-                    print("Invalid or removed input.")
+                    print("Removed contour.")
                     contours.pop(contour_count)
                     continue
 
+                contour_count += 1
 
                 # Get class ID
                 class_id = class_ids[user_class]
 
                 # Extract and normalize contour points
-                contour_points = cnt.squeeze()  # Remove extra dimensions if any
+                contour_points = cnt.squeeze()
                 normalized_points = []
                 for point in contour_points:
                     x, y = point
@@ -101,11 +110,15 @@ def loop_dir_and_annotate(images_dir):
                 annotation_line = f"{class_id} " + " ".join(normalized_points)
                 annotations.append(annotation_line)
 
-        cv2.destroyAllWindows()
-
+        # Write the annotations per image in txt file
         with open(f"annotations/{os.path.splitext(img_name)[0]}.txt", "w") as f:
             for annotation in annotations:
                 f.write(annotation + "\n")
 
+    # When done, destroy windows
+    cv2.destroyAllWindows()
+
+
 loop_dir_and_annotate('./images')
-# calibrateGreenValues('./images/bonirob_2016-05-23-11-02-39_5_frame203.png')
+# for img_name in os.listdir('./images'):
+# calibrateGreenValues(f'./images/bonirob_2016-05-23-11-02-39_5_frame275.png')
