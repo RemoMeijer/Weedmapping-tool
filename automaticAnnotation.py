@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pyautogui
 
 lower_green = (29, 40, 20) # finetune this
-upper_green = (70, 255, 80)
+upper_green = (90, 255, 110)
 
 def calibrateGreenValues(img):
     img = cv2.imread(f'{img}')
@@ -61,8 +61,8 @@ def loop_dir_and_annotate(images_dir):
             first_image = False
 
         # Convert to HSV
-        processed_mask, _ = convertHSV(img)
-        cv2.imshow(f"HSV", processed_mask)
+        processed_mask, converted_hsv = convertHSV(img)
+        cv2.imshow(f"HSV", img)
         height, width, _ = img.shape
 
         # Find contours
@@ -121,4 +121,4 @@ def loop_dir_and_annotate(images_dir):
 
 loop_dir_and_annotate('./images')
 # for img_name in os.listdir('./images'):
-# calibrateGreenValues(f'./images/bonirob_2016-05-23-11-02-39_5_frame275.png')
+# calibrateGreenValues(f'./images/bonirob_2016-05-04-10-05-47_1_frame36.png')
