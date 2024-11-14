@@ -1,7 +1,7 @@
 import os
 
 png_folder = './images'
-txt_folder = './annotations'
+txt_folder = './annotations_bonirob'
 
 # Loop through each file in the png folder
 for png_file in os.listdir(png_folder):

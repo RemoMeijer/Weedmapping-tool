@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from random import randint
 
-with open('Annotation/annotations/bonirob_2016-05-23-10-57-33_4_frame124.txt', 'r') as f:
+with open('Annotation/annotations_bonirob/bonirob_2016-05-23-10-57-33_4_frame124.txt', 'r') as f:
     labels = f.read().splitlines()
 img = cv2.imread('Annotation/images/bonirob_2016-05-23-10-57-33_4_frame124.png')
 h, w = img.shape[:2]

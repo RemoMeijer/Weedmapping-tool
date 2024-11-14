@@ -1,8 +1,6 @@
 from matplotlib import pyplot as plt
 import cv2 as cv
-import numpy as np
 from pathlib import Path
-from stitching.images import Images
 from stitching import Stitcher
 import os
 import shutil

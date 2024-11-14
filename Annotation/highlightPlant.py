@@ -7,7 +7,7 @@ from random import randint
 img_path = 'images'
 finished_img_path = './finished_images'
 os.makedirs(f'{finished_img_path}', exist_ok=True)
-os.makedirs(f'annotations', exist_ok=True)
+os.makedirs(f'annotations_bonirob', exist_ok=True)
 
 count = 0
 show_image = randint(1, 30)
@@ -86,10 +86,10 @@ for img_name in os.listdir(img_path):
             #
             # # Prepare the line in YOLO segmentation format
             # annotation_line = f"{class_id} " + " ".join(normalized_points)
-            # annotations.append(annotation_line)
+            # annotations_bonirob.append(annotation_line)
 
-    # with open(f"annotations/{os.path.splitext(img_name)[0]}.txt", "w") as f:
-    #     for annotation in annotations:
+    # with open(f"annotations_bonirob/{os.path.splitext(img_name)[0]}.txt", "w") as f:
+    #     for annotation in annotations_bonirob:
     #         f.write(annotation + "\n")
 
 
