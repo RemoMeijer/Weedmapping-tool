@@ -35,7 +35,7 @@ model = YOLO('plantdetectionmodel.pt')
 combined_centers = []
 combined_classes = []
 max_image_height = 0
-distance_threshold = 40
+distance_threshold = 100
 
 # Loop through batches
 for batch_name in batches:
@@ -61,6 +61,9 @@ for batch_name in batches:
             if conf > 0.7:
                 predictions.append([x1, y1, x2, y2, conf, cls])
 
+    valid_centers = []
+    valid_classes = []
+
     # Extract centers and apply offset
     for pred in predictions:
         x1, y1, x2, y2, _, cls = pred
@@ -68,8 +71,12 @@ for batch_name in batches:
         x_center = ((x_center - width) * -1) + offset
         y_center = (y1 + y2) / 2
         if not is_close_to_existing((x_center, y_center), combined_centers, distance_threshold):
-            combined_centers.append((x_center, y_center))
-            combined_classes.append(int(cls))
+            valid_centers.append((x_center, y_center))
+            valid_classes.append(int(cls))
+
+    for valid_center, valid_class in zip(valid_centers, valid_classes):
+        combined_centers.append(valid_center)
+        combined_classes.append(valid_class)
 
 # Plot all results in one figure
 unique_classes = list(set(combined_classes))
