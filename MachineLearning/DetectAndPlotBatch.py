@@ -3,19 +3,43 @@ import os
 from natsort import natsorted
 from ultralytics import YOLO
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 import cv2
 import math
+import numpy as np
 
 
 def is_close_to_existing(point, existing_points, threshold=10):
     """Check if a point is within a threshold distance of any existing point."""
     x_new, y_new = point
     for x_existing, y_existing in existing_points:
-        distance = math.sqrt((x_new - x_existing)**2 + (y_new - y_existing)**2)
+        distance = math.sqrt((x_new - x_existing) ** 2 + (y_new - y_existing) ** 2)
         if distance < threshold:
             return True
     return False
+
+
+def refine_offset(current_offset, combined_centers, new_centers, distance_threshold):
+    """
+    Refine the offset by minimizing the distance between the new centers and the existing combined centers.
+    """
+    best_offset = current_offset
+    min_overlap = float("inf")
+
+    # Test small variations in the offset
+    for offset_adjustment in np.arange(-200, 200, 5):  # Adjust range and step as needed
+        adjusted_centers = [(x + offset_adjustment, y) for x, y in new_centers]
+        overlap_count = sum(
+            is_close_to_existing(point, combined_centers, distance_threshold)
+            for point in adjusted_centers
+        )
+
+        # Minimize overlap
+        if overlap_count < min_overlap:
+            min_overlap = overlap_count
+            best_offset = current_offset + offset_adjustment
+
+    return best_offset
+
 
 # Load offsets
 offset_file = './batch/batch_offsets.json'
@@ -35,7 +59,7 @@ model = YOLO('plantdetectionmodel.pt')
 combined_centers = []
 combined_classes = []
 max_image_height = 0
-distance_threshold = 100
+distance_threshold = 50
 
 # Loop through batches
 for batch_name in batches:
@@ -70,17 +94,22 @@ for batch_name in batches:
         x_center = (x1 + x2) / 2
         x_center = ((x_center - width) * -1) + offset
         y_center = (y1 + y2) / 2
-        if not is_close_to_existing((x_center, y_center), combined_centers, distance_threshold):
-            valid_centers.append((x_center, y_center))
-            valid_classes.append(int(cls))
+        valid_centers.append((x_center, y_center))
+        valid_classes.append(int(cls))
 
+    # Refine the offset for better alignment
+    refined_offset = refine_offset(offset, combined_centers, valid_centers, distance_threshold)
+    valid_centers = [(x + (refined_offset - offset), y) for x, y in valid_centers]
+
+    # Add non-overlapping points to the combined data
     for valid_center, valid_class in zip(valid_centers, valid_classes):
-        combined_centers.append(valid_center)
-        combined_classes.append(valid_class)
+        if not is_close_to_existing(valid_center, combined_centers, distance_threshold):
+            combined_centers.append(valid_center)
+            combined_classes.append(valid_class)
 
 # Plot all results in one figure
 unique_classes = list(set(combined_classes))
-color_map = cm.get_cmap('tab10', len(unique_classes))
+color_map = plt.get_cmap('tab10', len(unique_classes))
 class_colors = {cls: color_map(i) for i, cls in enumerate(unique_classes)}
 
 plt.figure(figsize=(15, 8))
