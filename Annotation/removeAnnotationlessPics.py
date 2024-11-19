@@ -1,6 +1,6 @@
 import os
 
-png_folder = './images'
+png_folder = './images_old'
 txt_folder = './annotations_bonirob'
 
 # Loop through each file in the png folder

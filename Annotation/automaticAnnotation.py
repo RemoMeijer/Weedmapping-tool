@@ -34,7 +34,7 @@ def extract_green_plants_refined(img_path):
 
     # Define a mask where green is prominent and of sufficient intensity
     # Adjust these thresholds to reduce sensitivity to light ground areas
-    green_mask = (g > r + 15) & (g > b + 15) & (g > 20) & (g < 250) & (r < 220) & (b < 220)
+    green_mask = (g > r + 15) & (g > b + 15) & (g > 20) & (g < 255) & (r < 220) & (b < 100)
 
     # Convert boolean mask to uint8 (binary image)
     green_mask = green_mask.astype(np.uint8) * 255
@@ -70,10 +70,11 @@ def convertHSV(img):
     mask = cv2.inRange(hsv, lower_green, upper_green)
 
     # Remove some graining
-    kernel = cv2.getStructuringElement(cv2.MORPH_OPEN, (3, 3))
+    kernel = cv2.getStructuringElement(cv2.MORPH_OPEN, (5, 5))
     inner_processed_mask = cv2.morphologyEx(mask, cv2.MORPH_ERODE, kernel)
     inner_processed_mask = cv2.morphologyEx(inner_processed_mask, cv2.MORPH_OPEN, kernel)
     inner_processed_mask = cv2.morphologyEx(inner_processed_mask, cv2.MORPH_DILATE, kernel)
+
 
     return inner_processed_mask, hsv
 
@@ -84,12 +85,14 @@ def extract_green_plants_mask(img):
     r, g, b = img_rgb[:, :, 0], img_rgb[:, :, 1], img_rgb[:, :, 2]
 
     # Create refined mask for green areas
-    green_mask = (g > r + 20) & (g > b + 20) & (g > 40) & (g < 250) & (r < 230) & (b < 230)
+    green_mask = (g> r + 14) & (g > b) & (g > 50) & (g < 250) & (r < 200) & (b < 100)
     green_mask = green_mask.astype(np.uint8) * 255
 
     # # Apply morphological operations to clean up the mask
     kernel = np.ones((5, 5), np.uint8)
     green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_DILATE, kernel)
+    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_DILATE, kernel)
+
     # # green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
 
     return green_mask
@@ -128,7 +131,7 @@ def loop_dir_and_annotate(images_dir):
         contours = list(contours)
 
         # Area threshold
-        min_area = 100
+        min_area = 600
         contour_count = 0
 
         for cnt in contours:
@@ -136,7 +139,18 @@ def loop_dir_and_annotate(images_dir):
             if cv2.contourArea(cnt) > min_area:
                 img_copy = img.copy()
                 cv2.drawContours(img_copy, [cnt], -1, (0, 0, 255), thickness=2)
-                cv2.imshow(f"Display image", img_copy)
+
+                # cv2.drawContours(img_copy, [cnt], -1, (0, 255, 0), thickness=1)
+
+                # Create a resized version for display
+                scale_percent = 70  # Scale down to 50% of the original size
+                display_width = int(img_copy.shape[1] * scale_percent / 100)
+                display_height = int(img_copy.shape[0] * scale_percent / 100)
+                dim = (display_width, display_height)
+
+                resized_img = cv2.resize(img_copy, dim, interpolation=cv2.INTER_AREA)
+
+                cv2.imshow(f"Display image", resized_img)
                 cv2.waitKey(1)
 
                 class_mapping = {"2": "weed", "1": "crop"}

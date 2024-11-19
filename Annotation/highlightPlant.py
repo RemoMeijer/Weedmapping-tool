@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from random import randint
 
-img_path = 'images'
+img_path = 'images_old'
 finished_img_path = './finished_images'
 os.makedirs(f'{finished_img_path}', exist_ok=True)
 os.makedirs(f'annotations_bonirob', exist_ok=True)

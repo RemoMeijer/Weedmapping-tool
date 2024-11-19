@@ -38,6 +38,7 @@ for i in range (0, len(all_images), batch_size - 1):
     temp_images = get_image_paths('frame')
     mainImage = stitcher.stitch(temp_images)
     plot_image(mainImage, (20, 8))
+    cv.imwrite(f'./batch/batch{i}.jpg', mainImage)
 
     # Get main image's width
     _, width = mainImage.shape[:2]
