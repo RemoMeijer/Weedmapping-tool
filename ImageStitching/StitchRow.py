@@ -5,6 +5,7 @@ from stitching import Stitcher
 import os
 import shutil
 from natsort import natsorted
+import json
 
 def plot_image(img, figsize_in_inches=(5, 5)):
     fig, ax = plt.subplots(figsize=figsize_in_inches)
@@ -29,6 +30,8 @@ batch_size = 5
 stitcher = Stitcher()
 mainImage= None
 offset = 0
+all_offsets = {}
+first_image = True
 for i in range (0, len(all_images), batch_size - 1):
     batch = all_images[i:i + batch_size]
     for image_name in batch:
@@ -36,7 +39,10 @@ for i in range (0, len(all_images), batch_size - 1):
         destination_path = os.path.join(temp_folder, image_name)
         shutil.copy(source_path, destination_path)
     temp_images = get_image_paths('frame')
-    mainImage = stitcher.stitch(temp_images)
+    if len(batch) > 1:
+        mainImage = stitcher.stitch(temp_images)
+    else:
+        break
     plot_image(mainImage, (20, 8))
     cv.imwrite(f'./batch/batch{i}.jpg', mainImage)
 
@@ -50,8 +56,16 @@ for i in range (0, len(all_images), batch_size - 1):
     _, last_image_width = last_image.shape[:2]
 
     # Offset is main image, minus the last image width
-    offset = offset + width - last_image_width
+    if first_image:
+        offset = 0
+        first_image = False
+    else:
+        offset = offset + width - last_image_width
+    all_offsets[f'batch{i}.jpg'] = [offset, last_image_width]
     print(offset)
 
     for temp_image in os.listdir(temp_folder):
         os.remove(os.path.join(temp_folder, temp_image))
+
+with open('./batch/batch_offsets.json', 'w') as json_file:
+    json.dump(all_offsets, json_file, indent=4)

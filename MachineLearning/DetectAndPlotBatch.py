@@ -3,10 +3,17 @@ import os
 from natsort import natsorted
 from ultralytics import YOLO
 import matplotlib.pyplot as plt
-import cv2
+import cv2 as cv
 import math
 import numpy as np
 
+# Loop through batches
+def in_overlapping_image(x, image_width, name):
+    last_image_width = offset_data[name][1]
+    print(f'{x}, {last_image_width}, {image_width}')
+    if x + last_image_width > image_width:
+        return True
+    return False
 
 def is_close_to_existing(point, existing_points, threshold=10):
     """Check if a point is within a threshold distance of any existing point."""
@@ -59,18 +66,18 @@ model = YOLO('plantdetectionmodel.pt')
 combined_centers = []
 combined_classes = []
 max_image_height = 0
-distance_threshold = 50
+distance_threshold = 0
+first_image = True
 
-# Loop through batches
 for batch_name in batches:
     image_path = os.path.join('batch', batch_name)
-    image = cv2.imread(image_path)
+    image = cv.imread(image_path)
     height, width, _ = image.shape
     if height > max_image_height:
         max_image_height = height
 
     # Get offset for this batch
-    offset = offset_data[batch_name]
+    offset = offset_data[batch_name][0]
 
     # Make predictions
     results = model(image)
@@ -92,10 +99,14 @@ for batch_name in batches:
     for pred in predictions:
         x1, y1, x2, y2, _, cls = pred
         x_center = (x1 + x2) / 2
-        x_center = ((x_center - width) * -1) + offset
-        y_center = (y1 + y2) / 2
-        valid_centers.append((x_center, y_center))
-        valid_classes.append(int(cls))
+        if first_image or not in_overlapping_image(x_center, width, batch_name):
+            x_center = ((x_center - width) * -1) + offset
+            y_center = (y1 + y2) / 2
+
+            valid_centers.append((x_center, y_center))
+            valid_classes.append(int(cls))
+
+    first_image = False
 
     # Refine the offset for better alignment
     refined_offset = refine_offset(offset, combined_centers, valid_centers, distance_threshold)
@@ -104,8 +115,8 @@ for batch_name in batches:
     # Add non-overlapping points to the combined data
     for valid_center, valid_class in zip(valid_centers, valid_classes):
         if not is_close_to_existing(valid_center, combined_centers, distance_threshold):
-            combined_centers.append(valid_center)
-            combined_classes.append(valid_class)
+                combined_centers.append(valid_center)
+                combined_classes.append(valid_class)
 
 # Plot all results in one figure
 unique_classes = list(set(combined_classes))
