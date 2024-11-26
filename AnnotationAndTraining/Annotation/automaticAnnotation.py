@@ -2,27 +2,10 @@ import cv2
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import pyautogui
+from LiveProcessing.FrameExtractor.getFramesFromVideo import VideoFrameExtractor
 
 lower_green = (29, 40, 20) # finetune this
 upper_green = (120, 255, 150)
-
-# def calibrateGreenValues(img):
-#     img = cv2.imread(f'{img}')
-#     processed_mask, hsv = convertHSV(img)
-#     # Visualization of the intermediate results
-#     fig, axs = plt.subplots(1, 2, figsize=(20, 10))
-#
-#     axs[0].imshow(hsv)
-#     axs[0].set_title('Hsv green image', fontsize=30)
-#     axs[0].axis('off')
-#
-#     axs[1].imshow(processed_mask)
-#     axs[1].set_title('Highlighted areas', fontsize=30)
-#     axs[1].axis('off')
-#
-#     plt.tight_layout()
-#     plt.show()
 
 def extract_green_plants_refined(img_path):
     # Load the image
@@ -38,11 +21,6 @@ def extract_green_plants_refined(img_path):
 
     # Convert boolean mask to uint8 (binary image)
     green_mask = green_mask.astype(np.uint8) * 255
-
-    # # Apply morphological operations to clean up the mask
-    # kernel = np.ones((3, 3), np.uint8)
-    # green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_OPEN, kernel)
-    # green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
 
     # Create an output image that shows only the green plants
     green_plants = cv2.bitwise_and(img_rgb, img_rgb, mask=green_mask)
@@ -121,7 +99,6 @@ def loop_dir_and_annotate(images_dir):
             cv2.waitKey(0)
             first_image = False
 
-        # Convert to HSV
         processed_mask = extract_green_plants_mask(img)
         cv2.imshow(f"HSV", processed_mask)
         height, width, _ = img.shape
@@ -191,7 +168,16 @@ def loop_dir_and_annotate(images_dir):
     cv2.destroyAllWindows()
 
 
-loop_dir_and_annotate('images')
+def create_frames(starting_number):
+    extractor = VideoFrameExtractor(video_path=video_folder, frames_folder=frames_folder, frame_interval=15, starting_number=starting_number)
+    extractor.extract_frames()
+
+video_folder = './DoneVideos/zed1_2024-07-18_11h-57m-06s-232_top.mp4'
+frames_folder = './images'
+
+create_frames(1)
+
+# loop_dir_and_annotate('images')
 # for img_name in os.listdir('./images'):
 # calibrateGreenValues(f'./images/frame1.jpg')
 # extract_green_plants_refined(f'./images/frame1.jpg')

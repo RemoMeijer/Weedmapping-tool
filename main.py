@@ -1,8 +1,6 @@
 import os
 import shutil
 
-from numba.core.typing.builtins import Print
-
 from LiveProcessing.FrameExtractor.getFramesFromVideo import VideoFrameExtractor
 from LiveProcessing.ImageStitching.StitchRow import ImageStitcher
 from LiveProcessing.MachineLearning.DetectAndPlotBatch import BatchProcessor

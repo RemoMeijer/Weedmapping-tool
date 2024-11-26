@@ -4,10 +4,11 @@ import shutil
 
 
 class VideoFrameExtractor:
-    def __init__(self, video_path, frames_folder, frame_interval):
+    def __init__(self, video_path, frames_folder, frame_interval, starting_number=0):
         self.video_path = video_path
         self.frames_folder = frames_folder
         self.frame_interval = frame_interval
+        self.startingNumber = starting_number
 
         # Create frames folder if not exist
         if os.path.exists(self.frames_folder):
@@ -24,7 +25,7 @@ class VideoFrameExtractor:
             return
 
         frame_count = 0 # For looping through the video
-        frame_save_count = 0 # For saving frames
+        frame_save_count = self.startingNumber # For saving frames
 
         # Loop through video frames
         while True:
