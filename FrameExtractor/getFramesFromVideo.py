@@ -1,55 +1,49 @@
 import cv2
 import os
+import shutil
 
-# Paths
-videos_folder = 'Videos'
-frames_folder = 'Frames'
 
-# Create the 'Frames' folder if it doesn't exist
-os.makedirs(frames_folder, exist_ok=True)
+class VideoFrameExtractor:
+    def __init__(self, video_path, frames_folder, frame_interval):
+        self.video_path = video_path
+        self.frames_folder = frames_folder
+        self.frame_interval = frame_interval
 
-# Get a list of all .mp4 files in the 'Videos' folder
-video_files = [f for f in os.listdir(videos_folder) if f.endswith('.mp4')]
+        # Create frames folder if not exist
+        if os.path.exists(self.frames_folder):
+            shutil.rmtree(self.frames_folder)
+        os.makedirs(self.frames_folder, exist_ok=True)
 
-# Initialize global frame counter
-global_frame_count = 1
-frame_interval = 15  # Extract every 15 frames
+    def extract_frames(self):
+        # Load the video
+        cap = cv2.VideoCapture(self.video_path)
 
-# Loop through each video file in the 'Videos' folder
-for video_file in video_files:
-    video_path = os.path.join(videos_folder, video_file)
+        # Check if the video loaded successfully
+        if not cap.isOpened():
+            print(f"Error: Could not open video {self.video_path}")
+            return
 
-    # Load the video
-    cap = cv2.VideoCapture(video_path)
+        frame_count = 0 # For looping through the video
+        frame_save_count = 0 # For saving frames
 
-    # Check if video loaded successfully
-    if not cap.isOpened():
-        print(f"Error: Could not open video {video_file}")
-        continue
+        # Loop through video frames
+        while True:
+            ret, frame = cap.read()
 
-    frame_count = 0  # Reset the frame count for each video
+            if not ret:
+                break  # End of video
 
-    # Loop through video frames
-    while True:
-        ret, frame = cap.read()
+            # Check if this is a frame we need to save
+            if frame_count % self.frame_interval == 0:
+                # Save the frame as an image
+                frame_save_count += 1
 
-        if not ret:
-            break  # End of video
+                frame_filename = os.path.join(self.frames_folder, f"frame{frame_save_count}.jpg")
+                cv2.imwrite(frame_filename, frame)
 
-        # Check if this is a frame we need to save
-        if frame_count % frame_interval == 0:
-            # Construct filename for the frame (e.g., frame1, frame2, ...)
-            frame_filename = os.path.join(frames_folder, f"frame{global_frame_count}.jpg")
+            frame_count += 1
 
-            # Save the frame as an image
-            cv2.imwrite(frame_filename, frame)
+        # Release the video capture object for the current video
+        cap.release()
 
-            # Increment the global frame counter
-            global_frame_count += 1
-
-        frame_count += 1
-
-    # Release the video capture object for the current video
-    cap.release()
-
-print(f"Extracted and saved {global_frame_count - 1} frames from all Videos.")
+        print(f"Extracted and saved {frame_save_count} frames from {self.video_path}.")
