@@ -172,12 +172,12 @@ def create_frames(starting_number):
     extractor = VideoFrameExtractor(video_path=video_folder, frames_folder=frames_folder, frame_interval=15, starting_number=starting_number)
     extractor.extract_frames()
 
-video_folder = './DoneVideos/zed1_2024-07-18_11h-57m-06s-232_top.mp4'
+video_folder = './DoneVideos/zed1_2024-07-24_16h-00m-09s-926_top.mp4'
 frames_folder = './images'
 
-create_frames(1)
+create_frames(137)
 
-# loop_dir_and_annotate('images')
+loop_dir_and_annotate('images')
 # for img_name in os.listdir('./images'):
 # calibrateGreenValues(f'./images/frame1.jpg')
 # extract_green_plants_refined(f'./images/frame1.jpg')
