@@ -191,7 +191,7 @@ def loop_dir_and_annotate(images_dir):
     cv2.destroyAllWindows()
 
 
-loop_dir_and_annotate('./images')
+loop_dir_and_annotate('images')
 # for img_name in os.listdir('./images'):
 # calibrateGreenValues(f'./images/frame1.jpg')
 # extract_green_plants_refined(f'./images/frame1.jpg')

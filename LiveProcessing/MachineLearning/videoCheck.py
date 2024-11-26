@@ -57,7 +57,7 @@ model = YOLO("plantdetectionmodel.pt")
 
 output_filename = "example.mp4"
 
-video_path = r"../test_video.mp4"
+video_path = r"../../test_video.mp4"
 cap = cv2.VideoCapture(video_path)
 writer = create_video_writer(cap, output_filename)
 while True:

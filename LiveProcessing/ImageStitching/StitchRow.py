@@ -8,7 +8,7 @@ from stitching import Stitcher
 
 
 class ImageStitcher:
-    def __init__(self, source_folder, result_folder, temp_folder='./TempFrames', batch_size=5):
+    def __init__(self, source_folder, result_folder, temp_folder='TempFrames2', batch_size=5):
         self.source_folder = source_folder
         self.result_folder = result_folder
         self.temp_folder = temp_folder
@@ -76,4 +76,7 @@ class ImageStitcher:
         # Save offsets to a JSON file
         with open(os.path.join(self.result_folder, 'batch_offsets.json'), 'w') as json_file:
             json.dump(self.all_offsets, json_file, indent=4)
-        print(f"Stitching complete! Results saved in '{self.result_folder}'.")
+        print(f"Stitching complete!")
+
+        # Remove folder
+        shutil.rmtree(self.temp_folder)
