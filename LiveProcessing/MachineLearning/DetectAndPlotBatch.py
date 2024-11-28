@@ -111,8 +111,6 @@ class BatchProcessor:
                     self.combined_centers.append(valid_center)
                     self.combined_classes.append(valid_class)
 
-        self._plot_combined_results()
-
     def _plot_combined_results(self):
         """Plot all detected centers across batches."""
         unique_classes = list(set(self.combined_classes))

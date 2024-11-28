@@ -4,28 +4,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 from LiveProcessing.FrameExtractor.getFramesFromVideo import VideoFrameExtractor
 
-lower_green = (29, 40, 20) # finetune this
+lower_green = (29, 40, 20) # finetune these values every attempt
 upper_green = (120, 255, 150)
 
 def extract_green_plants_refined(img_path):
-    # Load the image
+    # Loading image
     img = cv2.imread(img_path)
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # Split the color channels
     r, g, b = img_rgb[:, :, 0], img_rgb[:, :, 1], img_rgb[:, :, 2]
 
-    # Define a mask where green is prominent and of sufficient intensity
-    # Adjust these thresholds to reduce sensitivity to light ground areas
+    # Define a mask where green is the main colour, e.g. significantly more present than red and blue
     green_mask = (g > r + 15) & (g > b + 15) & (g > 20) & (g < 255) & (r < 220) & (b < 100)
 
-    # Convert boolean mask to uint8 (binary image)
+    # Convert boolean mask to binary image
     green_mask = green_mask.astype(np.uint8) * 255
 
-    # Create an output image that shows only the green plants
+    # Create an output image that shows only the green plants for show
     green_plants = cv2.bitwise_and(img_rgb, img_rgb, mask=green_mask)
 
-    # Visualization of the intermediate results
+    # Visualization of plants
     fig, axs = plt.subplots(1, 3, figsize=(20, 10))
 
     axs[0].imshow(img_rgb)
@@ -43,22 +42,22 @@ def extract_green_plants_refined(img_path):
     plt.tight_layout()
     plt.show()
 
+# Old method was converting to HSV, but worked only in specific circumstances
 def convertHSV(img):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, lower_green, upper_green)
 
-    # Remove some graining
-    kernel = cv2.getStructuringElement(cv2.MORPH_OPEN, (5, 5))
+    # Remove some graining with Erode and Dilate etc.
+    kernel = cv2.getStructuringElement(cv2.MORPH_OPEN, (5, 5)) # Can adjust kernel size when needed
     inner_processed_mask = cv2.morphologyEx(mask, cv2.MORPH_ERODE, kernel)
     inner_processed_mask = cv2.morphologyEx(inner_processed_mask, cv2.MORPH_OPEN, kernel)
     inner_processed_mask = cv2.morphologyEx(inner_processed_mask, cv2.MORPH_DILATE, kernel)
 
-
     return inner_processed_mask, hsv
 
 
-# Modified function to return green mask only, without visualization
 def extract_green_plants_mask(img):
+    # Convert to RGB
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     r, g, b = img_rgb[:, :, 0], img_rgb[:, :, 1], img_rgb[:, :, 2]
 
@@ -66,12 +65,10 @@ def extract_green_plants_mask(img):
     green_mask = (g> r + 14) & (g > b) & (g > 50) & (g < 250) & (r < 200) & (b < 100)
     green_mask = green_mask.astype(np.uint8) * 255
 
-    # # Apply morphological operations to clean up the mask
+    # Remove some graining with Erode and Dilate etc.
     kernel = np.ones((5, 5), np.uint8)
     green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_DILATE, kernel)
-    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_DILATE, kernel)
-
-    # # green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
+    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_DILATE, kernel) # Can finetune this, maybe one less or more
 
     return green_mask
 
@@ -81,26 +78,32 @@ def loop_dir_and_annotate(images_dir):
     img_path = images_dir
     os.makedirs('annotations', exist_ok=True)
 
+    # Class id's.
+    # todo Maybe load from file?
     class_ids = {
-        "crop": 0,  # Assign class ID 0 for crop
-        "weed": 1,  # Assign class ID 1 for weed
+        "crop": 0,
+        "weed": 1,
     }
 
+    # Skip first image, or do it twice, because cv2 is weird with image showing
     first_image = True
 
+    # Loop trough folder that needs to be labeled
     for img_name in os.listdir(img_path):
         annotations = []
         print(img_name)
         img = cv2.imread(f'{img_path}/{img_name}')
 
+        # First image will show and go away in 1 frame. I do not want to use waitKey(0) because i do not want a key input
+        # To achieve this, two waitKey(1) need to be shown, because the first one will always be a black frame
         if first_image:
             cv2.imshow(f"Display image", img)
-            cv2.imshow(f"HSV", img)
-            cv2.waitKey(0)
+            cv2.waitKey(1)
             first_image = False
 
+        # Get the green plants from image
         processed_mask = extract_green_plants_mask(img)
-        cv2.imshow(f"HSV", processed_mask)
+        cv2.imshow(f"Green extracted", processed_mask)
         height, width, _ = img.shape
 
         # Find contours
@@ -109,17 +112,17 @@ def loop_dir_and_annotate(images_dir):
 
         # Area threshold
         min_area = 600
+
         contour_count = 0
 
+        # Loop trough found contours in image
         for cnt in contours:
             # If contour above threshold
             if cv2.contourArea(cnt) > min_area:
                 img_copy = img.copy()
-                cv2.drawContours(img_copy, [cnt], -1, (0, 0, 255), thickness=2)
+                cv2.drawContours(img_copy, [cnt], -1, (0, 0, 255), thickness=2) # BGR colour
 
-                # cv2.drawContours(img_copy, [cnt], -1, (0, 255, 0), thickness=1)
-
-                # Create a resized version for display
+                # Create a resized version for display issues
                 scale_percent = 70  # Scale down to 50% of the original size
                 display_width = int(img_copy.shape[1] * scale_percent / 100)
                 display_height = int(img_copy.shape[0] * scale_percent / 100)
@@ -130,10 +133,10 @@ def loop_dir_and_annotate(images_dir):
                 cv2.imshow(f"Display image", resized_img)
                 cv2.waitKey(1)
 
-                class_mapping = {"2": "weed", "1": "crop"}
+                class_mapping = {"2": "weed", "1": "crop"} # todo Get this from the earlier defined class id's. Bad coding!
 
-                # User decision if weed or crop
-                user_class = class_mapping.get(input("Enter class for this contour (crop 1 / weed 2 / other 3): ").strip())
+                # User decision if weed or crop by user input
+                user_class = class_mapping.get(input("Enter class for this contour (crop 1 / weed 2 / other 3): ").strip()) # todo Also can be automated
 
                 # Remove if other
                 if user_class is None:
@@ -146,7 +149,7 @@ def loop_dir_and_annotate(images_dir):
                 # Get class ID
                 class_id = class_ids[user_class]
 
-                # Extract and normalize contour points
+                # Extract and get the centre of the points
                 contour_points = cnt.squeeze()
                 normalized_points = []
                 for point in contour_points:
@@ -167,17 +170,22 @@ def loop_dir_and_annotate(images_dir):
     # When done, destroy windows
     cv2.destroyAllWindows()
 
-
+# Get frames to extract from a video, using the VideoFrameExtractor class
 def create_frames(starting_number):
     extractor = VideoFrameExtractor(video_path=video_folder, frames_folder=frames_folder, frame_interval=15, starting_number=starting_number)
     extractor.extract_frames()
 
+# Define video input and frame output folder
 video_folder = './DoneVideos/zed1_2024-07-24_16h-00m-09s-926_top.mp4'
 frames_folder = './images'
 
+# Create frames with offset
 create_frames(137)
 
+# Annotate
 loop_dir_and_annotate('images')
+
+# For calibration
 # for img_name in os.listdir('./images'):
 # calibrateGreenValues(f'./images/frame1.jpg')
 # extract_green_plants_refined(f'./images/frame1.jpg')
