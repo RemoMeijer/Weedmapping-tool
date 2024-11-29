@@ -1,9 +1,14 @@
 import os
 import shutil
+import sys
+
+from PyQt6.QtWidgets import QApplication
 
 from LiveProcessing.FrameExtractor.getFramesFromVideo import VideoFrameExtractor
 from LiveProcessing.ImageStitching.StitchRow import ImageStitcher
 from LiveProcessing.MachineLearning.DetectAndPlotBatch import BatchProcessor
+from LiveProcessing.UI.mainUI import MainWindow
+
 
 def cleanup():
     print("\nCleaning up:")
@@ -27,8 +32,11 @@ stitcher = ImageStitcher(source_folder=frames_folder, result_folder=stitched_fol
 stitcher.stitch_images()
 
 processor = BatchProcessor(batch_folder=stitched_folder, offset_file=f'{stitched_folder}/batch_offsets.json', model_file=ml_model_file)
-processor.process_batches()
-
+centers, classes = processor.process_batches()
 cleanup()
 
-print(f"Plotting {video_folder} done!")
+app = QApplication(sys.argv)
+window = MainWindow(centers, classes)
+window.show()
+sys.exit(app.exec())
+

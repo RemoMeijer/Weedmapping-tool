@@ -6,6 +6,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from natsort import natsorted
 from ultralytics import YOLO
+from ultralytics.utils.plotting import plot_results
+
+from Database.database_handler import DatabaseHandler
 
 
 class BatchProcessor:
@@ -17,6 +20,9 @@ class BatchProcessor:
 
         # Load YOLO model
         self.model = YOLO(self.model_file)
+
+        # Initialize database handler
+        self.db = DatabaseHandler()
 
         # Load offsets
         if not os.path.exists(self.offset_file):
@@ -111,8 +117,14 @@ class BatchProcessor:
                     self.combined_centers.append(valid_center)
                     self.combined_classes.append(valid_class)
 
+                    # Insert into db
+                    self.db.insert_detection(valid_center[0], valid_center[1], valid_class)
+        self._plot_combined_results()
+        self.db.close_db()
+        return self.combined_centers, self.combined_classes
+
     def _plot_combined_results(self):
-        """Plot all detected centers across batches."""
+        # Plot all detected centers across batches
         unique_classes = list(set(self.combined_classes))
         color_map = plt.get_cmap('tab10', len(unique_classes))
         class_colors = {cls: color_map(i) for i, cls in enumerate(unique_classes)}

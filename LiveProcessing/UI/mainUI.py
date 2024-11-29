@@ -1,9 +1,8 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QFrame, QGraphicsView, QGraphicsScene, \
     QGraphicsEllipseItem
-from PyQt6.QtGui import QColor, QBrush, QPen
+from PyQt6.QtGui import QColor, QBrush, QPen, QPainter
 from PyQt6.QtCore import Qt
-
 
 class ClickableEllipse(QGraphicsEllipseItem):
     def __init__(self, x, y, size, cls):
@@ -28,12 +27,15 @@ class ClickableEllipse(QGraphicsEllipseItem):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, centers, classes):
         super().__init__()
         self.setWindowTitle("Weed Detection Mapping")
         self.textColor = 'rgb(188, 190, 196)'
         self.backgroundDark = 'rgb(30, 31, 34)'
         self.backgroundLight = 'rgb(43, 45, 48)'
+
+        self.centers = centers
+        self.classes = classes
 
         self.mainUI()
         self.showMaximized()
@@ -57,6 +59,7 @@ class MainWindow(QMainWindow):
 
         self.graphicsView = QGraphicsView(self.map_frame)
         self.graphicsView.setScene(self.createScene())
+
         layout = QGridLayout(self.map_frame)
         layout.addWidget(self.graphicsView)
 
@@ -69,20 +72,24 @@ class MainWindow(QMainWindow):
         self.drawGrid(scene)
 
         # Dummy combined_centers and class_colors data
-        combined_centers = [(100, 150), (300, 350), (250, 100)]
-        class_colors = {0: (1.0, 0.0, 0.0), 1: (0.0, 1.0, 0.0)}  # Example colors: Red, Green
+        combined_centers = self.centers
+        combined_classes = self.classes
+
+        # Define class-specific colors
+        class_colors = {0: (0.0, 1.0, 0.0), 1: (1.0, 0.0, 0.0)}  # Red, Green
+        default_color = (0.0, 0.0, 1.0)  # Blue for undefined classes
 
         # Add points to the scene
-        for i, (x, y) in enumerate(combined_centers):
-            cls_color = class_colors.get(i % len(class_colors), (0, 0, 1))  # Default blue if out of range
-            point = ClickableEllipse(x, y, 15, cls_color)
+        for (x, y), cls in zip(combined_centers, combined_classes):
+            cls_color = class_colors.get(cls, default_color)  # Use default color if class not in dictionary
+            point = ClickableEllipse(x, y, 15, cls_color)  # Create ellipse with class-specific color
             scene.addItem(point)
 
         return scene
 
     def drawGrid(self, scene):
         grid_size = 50  # Size between grid lines
-        width, height = 600, 400  # Scene dimensions (adjust to your needs)
+        width, height = 15000, 1200  # Scene dimensions
 
         pen = QPen(QColor(80, 80, 80), 1)  # Grid line color
 
@@ -94,16 +101,11 @@ class MainWindow(QMainWindow):
         for y in range(0, height + 1, grid_size):
             scene.addLine(0, y, width, y, pen)
 
-        # Draw axes
+        # No need to draw axes below zero
         axis_pen = QPen(QColor(255, 255, 255), 2)  # Axis line color
-        scene.addLine(0, height / 2, width, height / 2, axis_pen)  # X-axis
-        scene.addLine(width / 2, 0, width / 2, height, axis_pen)  # Y-axis
+        scene.addLine(0, 0, width, 0, axis_pen)  # X-axis at top
+        scene.addLine(0, 0, 0, height, axis_pen)  # Y-axis at left
 
         # Set scene dimensions
         scene.setSceneRect(0, 0, width, height)
 
-
-app = QApplication(sys.argv)
-window = MainWindow()
-window.show()
-sys.exit(app.exec())
