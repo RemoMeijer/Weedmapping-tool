@@ -53,7 +53,7 @@ def create_video_writer(video_cap, output_filename):
     return writer
 
 
-model = YOLO("plantdetectionmodel.pt")
+model = YOLO("rt-detr.pt")
 
 output_filename = "example.mp4"
 

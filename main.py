@@ -23,9 +23,9 @@ def cleanup():
 video_folder = 'test_video.mp4'
 frames_folder = 'LiveProcessing/FrameExtractor/Frames'
 stitched_folder = 'LiveProcessing/ImageStitching/batch'
-ml_model_file = 'LiveProcessing/MachineLearning/plantdetectionmodel.pt'
+ml_model_file = 'LiveProcessing/MachineLearning/rt-detr.pt'
 
-extractor = VideoFrameExtractor(video_path=video_folder, frames_folder=frames_folder, frame_interval=15)
+extractor = VideoFrameExtractor(video_path=video_folder, frames_folder=frames_folder, frame_interval=8)
 extractor.extract_frames()
 
 stitcher = ImageStitcher(source_folder=frames_folder, result_folder=stitched_folder)

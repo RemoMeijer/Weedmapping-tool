@@ -176,11 +176,11 @@ def create_frames(starting_number):
     extractor.extract_frames()
 
 # Define video input and frame output folder
-video_folder = './DoneVideos/zed1_2024-07-24_16h-00m-09s-926_top.mp4'
+video_folder = './DoneVideos/zed1_2024-07-18_12h-00m-25s-485_top.mp4'
 frames_folder = './images'
 
 # Create frames with offset
-create_frames(137)
+create_frames(176)
 
 # Annotate
 loop_dir_and_annotate('images')

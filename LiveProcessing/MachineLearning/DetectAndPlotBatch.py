@@ -5,21 +5,21 @@ import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
 from natsort import natsorted
-from ultralytics import YOLO
+from ultralytics import RTDETR
 from ultralytics.utils.plotting import plot_results
 
 from Database.database_handler import DatabaseHandler
 
 
 class BatchProcessor:
-    def __init__(self, batch_folder, offset_file, model_file, distance_threshold=10):
+    def __init__(self, batch_folder, offset_file, model_file, distance_threshold=0):
         self.batch_folder = batch_folder
         self.offset_file = offset_file
         self.model_file = model_file
         self.distance_threshold = distance_threshold
 
-        # Load YOLO model
-        self.model = YOLO(self.model_file)
+        # Load model
+        self.model = RTDETR(self.model_file)
 
         # Initialize database handler
         self.db = DatabaseHandler()
@@ -36,7 +36,7 @@ class BatchProcessor:
         self.max_image_height = 0
 
     def _is_close_to_existing(self, point, existing_points):
-        """Check if a point is within a threshold distance of any existing point."""
+        # Check if a point is within a threshold distance of any existing point.
         x_new, y_new = point
         for x_existing, y_existing in existing_points:
             distance = math.sqrt((x_new - x_existing) ** 2 + (y_new - y_existing) ** 2)
@@ -45,7 +45,7 @@ class BatchProcessor:
         return False
 
     def _refine_offset(self, current_offset, new_centers):
-        """Refine the offset by minimizing the distance between new and existing centers."""
+        # Refine the offset by minimizing the distance between new and existing centers.
         best_offset = current_offset
         min_overlap = float("inf")
 
@@ -63,12 +63,14 @@ class BatchProcessor:
         return best_offset
 
     def _in_overlapping_image(self, x, image_width, name):
-        """Check if a point overlaps with the previous batch."""
+        # Check if a point overlaps with the previous batch.
         last_image_width = self.offset_data[name][1]
         return x + last_image_width > image_width
 
     def process_batches(self):
-        """Process all batches, apply offsets, and generate combined plot."""
+        run_id = self.db.create_new_run()
+
+        # Process all batches, apply offsets, and generate combined plot.
         batches = natsorted(self.offset_data.keys())
         first_image = True
 
@@ -118,9 +120,14 @@ class BatchProcessor:
                     self.combined_classes.append(valid_class)
 
                     # Insert into db
-                    self.db.insert_detection(valid_center[0], valid_center[1], valid_class)
+                    self.db.cursor.execute(
+                        "INSERT INTO Detections (run_id, x_coordinate, y_coordinate, class) VALUES (?, ?, ?, ?)",
+                        (run_id, valid_center[0], valid_center[1], valid_class)
+                    )
+                    self.db.conn.commit()
+
+
         self._plot_combined_results()
-        self.db.close_db()
         return self.combined_centers, self.combined_classes
 
     def _plot_combined_results(self):
