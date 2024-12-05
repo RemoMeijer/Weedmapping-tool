@@ -83,6 +83,12 @@ class MainWindow(QMainWindow):
 
         return settingsFrame
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+
+        # Update the grid when the mapFrame is resized
+        self.graphicsView.setScene(self.createScene())
+
     def populate_dropdowns(self):
         # Fetch data from database (replace these with actual database queries)
         fields = self.db.get_all_fields()  # Example: Returns a list like ['Field A', 'Field B']
@@ -131,8 +137,8 @@ class MainWindow(QMainWindow):
     def drawGrid(self, scene):
         grid_size = 50  # Size between grid lines
 
-        width = int(self.graphicsView.viewport().width())
-        height = int(self.graphicsView.viewport().height())
+        width = self.map_frame.width()
+        height = self.map_frame.height()
 
         pen = QPen(QColor(80, 80, 80), 1)  # Grid line color
 
