@@ -69,6 +69,13 @@ class BatchProcessor:
 
     def process_batches(self):
         run_id = self.db.create_new_run()
+        field_name = 'Field A'
+        crop_name = 'A good crop'
+
+        self.db.ensure_field_exists(field_name)
+        self.db.ensure_crop_exists(crop_name)
+
+        self.db.add_run(run_id=run_id, field_name=field_name, crop_name=crop_name)
 
         # Process all batches, apply offsets, and generate combined plot.
         batches = natsorted(self.offset_data.keys())
@@ -120,14 +127,11 @@ class BatchProcessor:
                     self.combined_classes.append(valid_class)
 
                     # Insert into db
-                    self.db.cursor.execute(
-                        "INSERT INTO Detections (run_id, x_coordinate, y_coordinate, class) VALUES (?, ?, ?, ?)",
-                        (run_id, valid_center[0], valid_center[1], valid_class)
-                    )
+                    self.db.add_detection(run_id=run_id, x=valid_center[0], y=valid_center[1], detection_class=valid_class)
                     self.db.conn.commit()
 
 
-        self._plot_combined_results()
+        # self._plot_combined_results()
         return self.combined_centers, self.combined_classes
 
     def _plot_combined_results(self):

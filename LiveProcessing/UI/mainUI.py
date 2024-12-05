@@ -1,8 +1,11 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QFrame, QGraphicsView, QGraphicsScene, \
-    QGraphicsEllipseItem
+    QGraphicsEllipseItem, QComboBox, QLabel, QVBoxLayout
 from PyQt6.QtGui import QColor, QBrush, QPen, QPainter
 from PyQt6.QtCore import Qt
+
+from Database.database_handler import DatabaseHandler
+
 
 class ClickableEllipse(QGraphicsEllipseItem):
     def __init__(self, x, y, size, cls):
@@ -37,6 +40,8 @@ class MainWindow(QMainWindow):
         self.centers = centers
         self.classes = classes
 
+        self.db = DatabaseHandler()
+
         self.mainUI()
         self.showMaximized()
 
@@ -51,7 +56,43 @@ class MainWindow(QMainWindow):
     def settingsFrame(self):
         settingsFrame = QFrame()
         settingsFrame.setStyleSheet(f"background-color: {self.backgroundLight};")
+
+        # Create a layout for the settings frame
+        layout = QVBoxLayout(settingsFrame)
+
+        # Create dropdowns
+        self.field_dropdown = QComboBox()
+        self.crop_dropdown = QComboBox()
+        self.run_dropdown = QComboBox()
+
+        # Set placeholder text
+        self.field_dropdown.addItem("Select Field")
+        self.crop_dropdown.addItem("Select Crop")
+        self.run_dropdown.addItem("Select Run")
+
+        # Add labels and dropdowns to the layout
+        layout.addWidget(QLabel("Fields:"))
+        layout.addWidget(self.field_dropdown)
+        layout.addWidget(QLabel("Crops:"))
+        layout.addWidget(self.crop_dropdown)
+        layout.addWidget(QLabel("Runs:"))
+        layout.addWidget(self.run_dropdown)
+
+        # Populate dropdowns (example placeholders, replace with actual database queries)
+        self.populate_dropdowns()
+
         return settingsFrame
+
+    def populate_dropdowns(self):
+        # Fetch data from database (replace these with actual database queries)
+        fields = self.db.get_all_fields()  # Example: Returns a list like ['Field A', 'Field B']
+        crops = self.db.get_all_crops()  # Example: Returns a list like ['Crop X', 'Crop Y']
+        runs = self.db.get_all_runs()  # Example: Returns a list like ['Run 1', 'Run 2']
+
+        # Populate the dropdowns
+        self.field_dropdown.addItems(fields)
+        self.crop_dropdown.addItems(crops)
+        self.run_dropdown.addItems(runs)
 
     def mapFrame(self):
         self.map_frame = QFrame()
@@ -89,7 +130,9 @@ class MainWindow(QMainWindow):
 
     def drawGrid(self, scene):
         grid_size = 50  # Size between grid lines
-        width, height = 15000, 1200  # Scene dimensions
+
+        width = int(self.graphicsView.viewport().width())
+        height = int(self.graphicsView.viewport().height())
 
         pen = QPen(QColor(80, 80, 80), 1)  # Grid line color
 
@@ -108,4 +151,3 @@ class MainWindow(QMainWindow):
 
         # Set scene dimensions
         scene.setSceneRect(0, 0, width, height)
-
