@@ -1,8 +1,10 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QFrame, QGraphicsView, QGraphicsScene, \
-    QGraphicsEllipseItem, QComboBox, QLabel, QVBoxLayout
-from PyQt6.QtGui import QColor, QBrush, QPen, QPainter
+    QGraphicsEllipseItem, QComboBox, QLabel, QVBoxLayout, QTabWidget, QGraphicsPixmapItem
+from PyQt6.QtGui import QColor, QBrush, QPen, QPainter, QPixmap
 from PyQt6.QtCore import Qt
+import requests
+from io import BytesIO
 
 from Database.database_handler import DatabaseHandler
 
@@ -37,6 +39,10 @@ class MainWindow(QMainWindow):
         self.backgroundDark = 'rgb(30, 31, 34)'
         self.backgroundLight = 'rgb(43, 45, 48)'
 
+        self.field_dropdown = QComboBox()
+        self.crop_dropdown = QComboBox()
+        self.run_dropdown = QComboBox()
+
         self.centers = centers
         self.classes = classes
 
@@ -57,31 +63,54 @@ class MainWindow(QMainWindow):
         settingsFrame = QFrame()
         settingsFrame.setStyleSheet(f"background-color: {self.backgroundLight};")
 
-        # Create a layout for the settings frame
-        layout = QVBoxLayout(settingsFrame)
+        # Create a QTabWidget for tabs
+        tabs = QTabWidget(settingsFrame)
+        tabs.setStyleSheet(f"background-color: {self.backgroundLight}; color: {self.textColor};")
 
-        # Create dropdowns
-        self.field_dropdown = QComboBox()
-        self.crop_dropdown = QComboBox()
-        self.run_dropdown = QComboBox()
-
-        # Set placeholder text
-        self.field_dropdown.addItem("Select Field")
-        self.crop_dropdown.addItem("Select Crop")
-        self.run_dropdown.addItem("Select Run")
-
-        # Add labels and dropdowns to the layout
-        layout.addWidget(QLabel("Fields:"))
-        layout.addWidget(self.field_dropdown)
-        layout.addWidget(QLabel("Crops:"))
-        layout.addWidget(self.crop_dropdown)
-        layout.addWidget(QLabel("Runs:"))
-        layout.addWidget(self.run_dropdown)
-
-        # Populate dropdowns (example placeholders, replace with actual database queries)
         self.populate_dropdowns()
 
+        # Create tabs
+        runs_tab = self.createTab("Runs")
+        fields_tab = self.createTab("Fields")
+        crops_tab = self.createTab("Crops")
+
+        # Add tabs to the tab widget
+        tabs.addTab(runs_tab, "Runs")
+        tabs.addTab(fields_tab, "Fields")
+        tabs.addTab(crops_tab, "Crops")
+
+        # Add tabs to the settingsFrame layout
+        layout = QVBoxLayout(settingsFrame)
+        layout.addWidget(tabs)
+
         return settingsFrame
+
+    def createTab(self, label_text):
+        """
+        Create a tab containing a label and a dropdown list.
+        """
+        tab = QWidget()
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        tab_layout.setSpacing(10)
+        tab_layout.setContentsMargins(10, 10, 10, 10)
+
+        # Add a label and dropdown to the tab
+        label = QLabel(label_text + ":")
+        dropdown = QComboBox()
+        if label_text == "Runs":
+            dropdown = self.run_dropdown
+        if label_text == "Fields":
+            dropdown = self.field_dropdown
+        if label_text == "Crops":
+            dropdown = self.crop_dropdown
+
+        dropdown.setStyleSheet(f"color: {self.textColor};")
+
+        tab_layout.addWidget(label)
+        tab_layout.addWidget(dropdown)
+
+        return tab
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -113,24 +142,7 @@ class MainWindow(QMainWindow):
         return self.map_frame
 
     def createScene(self):
-        scene = QGraphicsScene()
 
-        # Draw grid and axes
-        self.drawGrid(scene)
-
-        # Dummy combined_centers and class_colors data
-        combined_centers = self.centers
-        combined_classes = self.classes
-
-        # Define class-specific colors
-        class_colors = {0: (0.0, 1.0, 0.0), 1: (1.0, 0.0, 0.0)}  # Red, Green
-        default_color = (0.0, 0.0, 1.0)  # Blue for undefined classes
-
-        # Add points to the scene
-        for (x, y), cls in zip(combined_centers, combined_classes):
-            cls_color = class_colors.get(cls, default_color)  # Use default color if class not in dictionary
-            point = ClickableEllipse(x, y, 15, cls_color)  # Create ellipse with class-specific color
-            scene.addItem(point)
 
         return scene
 
