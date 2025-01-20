@@ -1,10 +1,10 @@
 from PyQt6.QtCore import Qt, QUrl, QObject, pyqtSlot, pyqtSignal
-from PyQt6.QtGui import QColor, QBrush, QPen, QFont
+from PyQt6.QtGui import QColor, QPen, QFont
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebChannel import QWebChannel
-from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QGraphicsEllipseItem, QComboBox, QLabel, \
-    QVBoxLayout, QTabWidget, QGraphicsView
+from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QComboBox, QLabel, \
+    QVBoxLayout, QTabWidget, QSpacerItem, QSizePolicy
 
 from Database.database_handler import DatabaseHandler
 
@@ -60,12 +60,15 @@ class MainWindow(QMainWindow):
         self.small_font = QFont("Courier New", 15)
 
         self.field_dropdown = QComboBox()
+        self.field_runs_dropdown = QComboBox()
         self.crop_dropdown = QComboBox()
         self.run_dropdown = QComboBox()
 
         self.field_id_label = QLabel("Field ID: Not selected")
         self.field_crop_label = QLabel("Field crop: Not selected")
         self.field_category_label = QLabel("Field category: Not selected")
+        self.field_runs_label = QLabel("Field runs:")
+
 
         self.centers = centers
         self.classes = classes
@@ -151,6 +154,9 @@ class MainWindow(QMainWindow):
         tab_layout.addWidget(own_fields_label)
         tab_layout.addWidget(dropdown)
 
+        spacer = QSpacerItem(20, 70, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
+        tab_layout.addItem(spacer)
+
         self.field_id_label.setFont(self.small_font)
         self.field_id_label.setStyleSheet(f"color: {self.textColor};")
         self.field_category_label.setFont(self.small_font)
@@ -158,10 +164,16 @@ class MainWindow(QMainWindow):
         self.field_crop_label.setFont(self.small_font)
         self.field_crop_label.setStyleSheet(f"color: {self.textColor};")
 
+        self.field_runs_label.setFont(self.big_font)
+        self.field_runs_label.setStyleSheet(f"color: {self.textColor};")
+
         tab_layout.addWidget(info_label)
         tab_layout.addWidget(self.field_id_label)
         tab_layout.addWidget(self.field_crop_label)
         tab_layout.addWidget(self.field_category_label)
+        tab_layout.addItem(spacer)
+        tab_layout.addWidget(self.field_runs_label)
+        tab_layout.addWidget(self.field_runs_dropdown)
 
         return tab_layout
 
@@ -190,6 +202,7 @@ class MainWindow(QMainWindow):
         self.field_dropdown.addItems(fields)
         self.crop_dropdown.addItems(crops)
         self.run_dropdown.addItems(runs)
+        self.field_runs_dropdown.addItem("None")
 
     def mapFrame(self):
         self.map_frame = QFrame()
