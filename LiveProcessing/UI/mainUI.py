@@ -1,10 +1,9 @@
-import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QFrame, QGraphicsView, QGraphicsScene, \
-    QGraphicsEllipseItem, QComboBox, QLabel, QVBoxLayout, QTabWidget, QGraphicsPixmapItem
-from PyQt6.QtGui import QColor, QBrush, QPen, QPainter, QPixmap
-from PyQt6.QtCore import Qt
-import requests
-from io import BytesIO
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QColor, QBrush, QPen
+from PyQt6.QtWebEngineCore import QWebEngineSettings
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QGraphicsEllipseItem, QComboBox, QLabel, \
+    QVBoxLayout, QTabWidget, QGraphicsView
 
 from Database.database_handler import DatabaseHandler
 
@@ -34,6 +33,7 @@ class ClickableEllipse(QGraphicsEllipseItem):
 class MainWindow(QMainWindow):
     def __init__(self, centers, classes):
         super().__init__()
+
         self.setWindowTitle("Weed Detection Mapping")
         self.textColor = 'rgb(188, 190, 196)'
         self.backgroundDark = 'rgb(30, 31, 34)'
@@ -56,8 +56,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         grid = QGridLayout(central_widget)
 
-        grid.addWidget(self.settingsFrame(), 0, 0, 3, 1)
-        grid.addWidget(self.mapFrame(), 0, 1, 3, 3)
+        grid.addWidget(self.settingsFrame(), 0, 0)
+        grid.addWidget(self.mapFrame(), 0, 1)
+
+        grid.setColumnStretch(0, 2)
+        grid.setColumnStretch(1, 5)
 
     def settingsFrame(self):
         settingsFrame = QFrame()
@@ -112,11 +115,11 @@ class MainWindow(QMainWindow):
 
         return tab
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-
-        # Update the grid when the mapFrame is resized
-        self.graphicsView.setScene(self.createScene())
+    # def resizeEvent(self, event):
+    #     super().resizeEvent(event)
+    #
+    #     # Update the grid when the mapFrame is resized
+    #     self.web_view.setScene(self.createScene())
 
     def populate_dropdowns(self):
         # Fetch data from database (replace these with actual database queries)
@@ -133,18 +136,26 @@ class MainWindow(QMainWindow):
         self.map_frame = QFrame()
         self.map_frame.setStyleSheet(f"background-color: {self.backgroundDark};")
 
-        self.graphicsView = QGraphicsView(self.map_frame)
-        self.graphicsView.setScene(self.createScene())
+        # Create QWebEngineView
+        self.web_view = QWebEngineView()
 
+        # Enable LocalContentCanAccessRemoteUrls
+        self.web_view.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+
+        # Set up QWebChannel // todo
+
+        # Load the map.html file
+        html_file = QUrl.fromLocalFile("/home/remco/Afstudeerstage/PythonScripts/AgronomischePerformanceMeting/LiveProcessing/UI/_map.html")  # Replace with your actual path
+        self.web_view.setUrl(html_file)
+
+        # Add QWebEngineView to the layout
         layout = QGridLayout(self.map_frame)
-        layout.addWidget(self.graphicsView)
+        layout.addWidget(self.web_view)
 
         return self.map_frame
 
     def createScene(self):
-
-
-        return scene
+        pass
 
     def drawGrid(self, scene):
         grid_size = 50  # Size between grid lines

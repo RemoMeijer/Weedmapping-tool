@@ -4,9 +4,9 @@ import sys
 
 from PyQt6.QtWidgets import QApplication
 
-from LiveProcessing.FrameExtractor.getFramesFromVideo import VideoFrameExtractor
-from LiveProcessing.ImageStitching.StitchRow import ImageStitcher
-from LiveProcessing.MachineLearning.DetectAndPlotBatch import BatchProcessor
+# from LiveProcessing.FrameExtractor.getFramesFromVideo import VideoFrameExtractor
+# from LiveProcessing.ImageStitching.StitchRow import ImageStitcher
+# from LiveProcessing.MachineLearning.DetectAndPlotBatch import BatchProcessor
 from LiveProcessing.UI.mainUI import MainWindow
 
 
