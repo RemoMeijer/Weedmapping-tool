@@ -31,6 +31,8 @@
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
+    var selectedLayer = null;
+
     document.addEventListener('DOMContentLoaded', () => {
         // Set up the WebChannel
         new QWebChannel(qt.webChannelTransport, (channel) => {
@@ -45,17 +47,29 @@
 
     function onPolygonClick(e) {
         var layer = e.target;
+
+         if (selectedLayer) {
+            selectedLayer.setStyle({
+                color: '#ff7800', // Original color
+                weight: 5,
+                opacity: 0.65
+            });
+        }
+
+        // Update the style of the clicked layer to blue
+        layer.setStyle({
+            color: '#4070ff',
+            weight: 5,
+            opacity: 0.8
+        });
+
+        selectedLayer = layer;
+
         var bounds = layer.getBounds();
         map.fitBounds(bounds);
-        var props = layer.feature.properties;
-
-        var content = `<strong>Category:</strong> ${props.category}<br>
-                       <strong>Crop:</strong> ${props.gewas}<br>
-                       <strong>Year:</strong> ${props.jaar}<br>
-                       <strong>Status:</strong> ${props.status}`;
-        layer.bindPopup(content).openPopup();
 
         // Send data to Python
+        var props = layer.feature.properties;
         backend.receiveDataFromJs(JSON.stringify(props));
     }
 

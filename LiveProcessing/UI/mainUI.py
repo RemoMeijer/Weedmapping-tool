@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt, QUrl, QObject, pyqtSlot, pyqtSignal
-from PyQt6.QtGui import QColor, QBrush, QPen
+from PyQt6.QtGui import QColor, QBrush, QPen, QFont
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebChannel import QWebChannel
@@ -13,19 +13,40 @@ class Backend(QObject):
     # Signal to send data from Python to JavaScript
     sendDataToJs = pyqtSignal(str)
 
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
+
     @pyqtSlot(str)
     def receiveDataFromJs(self, data):
         print(f"Data received from JavaScript: {data}")
         # Here, parse the received JSON data and update the UI
         import json
         parsed_data = json.loads(data)
-        field = parsed_data.get("gewas", "Unknown")  # Example: Get the "gewas" property
-        crop = parsed_data.get("category", "Unknown")
-        self.updateUI(field, crop)
+        self.updateUI(parsed_data)
 
-    def updateUI(self, field, crop):
-        # Update the dropdowns or other UI elements
-        print(f"Updating UI with Field: {field}, Crop: {crop}")
+    def updateUI(self, parsed_data):
+        key_to_widget = {
+            "id": self.main_window.field_id_label,
+            "gewas": self.main_window.field_crop_label,
+            "category": self.main_window.field_category_label,
+        }
+
+        for key, value in parsed_data.items():
+            widget = key_to_widget.get(key)
+            if widget:
+                # Update QLabel
+                if isinstance(widget, QLabel):
+                    widget.setText(f"{key.capitalize()}: {value}")
+
+                # Update QComboBox
+                elif isinstance(widget, QComboBox):
+                    if value not in [widget.itemText(i) for i in range(widget.count())]:
+                        widget.addItem(value)
+                    widget.setCurrentText(value)
+
+        print(f"Updated UI with data: {parsed_data}")
+
 
 class MainWindow(QMainWindow):
     def __init__(self, centers, classes):
@@ -35,10 +56,16 @@ class MainWindow(QMainWindow):
         self.textColor = 'rgb(188, 190, 196)'
         self.backgroundDark = 'rgb(30, 31, 34)'
         self.backgroundLight = 'rgb(43, 45, 48)'
+        self.big_font = QFont("Courier New", 20)
+        self.small_font = QFont("Courier New", 15)
 
         self.field_dropdown = QComboBox()
         self.crop_dropdown = QComboBox()
         self.run_dropdown = QComboBox()
+
+        self.field_id_label = QLabel("Field ID: Not selected")
+        self.field_crop_label = QLabel("Field crop: Not selected")
+        self.field_category_label = QLabel("Field category: Not selected")
 
         self.centers = centers
         self.classes = classes
@@ -70,14 +97,14 @@ class MainWindow(QMainWindow):
         self.populate_dropdowns()
 
         # Create tabs
-        runs_tab = self.createTab("Runs")
         fields_tab = self.createTab("Fields")
         crops_tab = self.createTab("Crops")
+        runs_tab = self.createTab("Runs")
 
         # Add tabs to the tab widget
-        tabs.addTab(runs_tab, "Runs")
         tabs.addTab(fields_tab, "Fields")
         tabs.addTab(crops_tab, "Crops")
+        tabs.addTab(runs_tab, "Runs")
 
         # Add tabs to the settingsFrame layout
         layout = QVBoxLayout(settingsFrame)
@@ -98,31 +125,66 @@ class MainWindow(QMainWindow):
         # Add a label and dropdown to the tab
         label = QLabel(label_text + ":")
         dropdown = QComboBox()
-        if label_text == "Runs":
-            dropdown = self.run_dropdown
-        if label_text == "Fields":
-            dropdown = self.field_dropdown
-        if label_text == "Crops":
-            dropdown = self.crop_dropdown
-
         dropdown.setStyleSheet(f"color: {self.textColor};")
+
+        if label_text == "Runs":
+            tab_layout = self.define_runs_dropdown(label, tab_layout)
+        if label_text == "Fields":
+            tab_layout = self.define_field_tab(tab_layout)
+        if label_text == "Crops":
+            tab_layout = self.define_crops_dropdown(label, tab_layout)
+
+        return tab
+
+    def define_field_tab(self, tab_layout):
+        dropdown = self.field_dropdown
+
+        own_fields_label = QLabel()
+        own_fields_label.setText("Fields:")
+        own_fields_label.setStyleSheet(f"color: {self.textColor};")
+        own_fields_label.setFont(self.big_font)
+        info_label = QLabel()
+        info_label.setText("Info:")
+        info_label.setFont(self.big_font)
+        info_label.setStyleSheet(f"color: {self.textColor};")
+
+        tab_layout.addWidget(own_fields_label)
+        tab_layout.addWidget(dropdown)
+
+        self.field_id_label.setFont(self.small_font)
+        self.field_id_label.setStyleSheet(f"color: {self.textColor};")
+        self.field_category_label.setFont(self.small_font)
+        self.field_category_label.setStyleSheet(f"color: {self.textColor};")
+        self.field_crop_label.setFont(self.small_font)
+        self.field_crop_label.setStyleSheet(f"color: {self.textColor};")
+
+        tab_layout.addWidget(info_label)
+        tab_layout.addWidget(self.field_id_label)
+        tab_layout.addWidget(self.field_crop_label)
+        tab_layout.addWidget(self.field_category_label)
+
+        return tab_layout
+
+    def define_runs_dropdown(self, label, tab_layout):
+        dropdown = self.run_dropdown
 
         tab_layout.addWidget(label)
         tab_layout.addWidget(dropdown)
 
-        return tab
+        return tab_layout
 
-    # def resizeEvent(self, event):
-    #     super().resizeEvent(event)
-    #
-    #     # Update the grid when the mapFrame is resized
-    #     self.web_view.setScene(self.createScene())
+    def define_crops_dropdown(self, label, tab_layout):
+        dropdown = self.crop_dropdown
+        tab_layout.addWidget(label)
+        tab_layout.addWidget(dropdown)
+
+        return tab_layout
 
     def populate_dropdowns(self):
-        # Fetch data from database (replace these with actual database queries)
-        fields = self.db.get_all_fields()  # Example: Returns a list like ['Field A', 'Field B']
-        crops = self.db.get_all_crops()  # Example: Returns a list like ['Crop X', 'Crop Y']
-        runs = self.db.get_all_runs()  # Example: Returns a list like ['Run 1', 'Run 2']
+        # Fetch data from database
+        fields = self.db.get_all_fields()
+        crops = self.db.get_all_crops()
+        runs = self.db.get_all_runs()
 
         # Populate the dropdowns
         self.field_dropdown.addItems(fields)
@@ -141,7 +203,7 @@ class MainWindow(QMainWindow):
 
         # Set up QWebChannel // todo
         self.web_channel = QWebChannel()
-        self.backend = Backend()
+        self.backend = Backend(self)
         self.web_channel.registerObject("backend", self.backend)
         self.web_view.page().setWebChannel(self.web_channel)
 
