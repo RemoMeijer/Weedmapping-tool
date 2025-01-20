@@ -1,3 +1,5 @@
+import json
+
 from PyQt6.QtCore import Qt, QUrl, QObject, pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QColor, QPen, QFont
 from PyQt6.QtWebEngineCore import QWebEngineSettings
@@ -8,30 +10,30 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QComboBox
 
 from Database.database_handler import DatabaseHandler
 
-
 class Backend(QObject):
     # Signal to send data from Python to JavaScript
-    sendDataToJs = pyqtSignal(str)
+    send_data_to_js = pyqtSignal(str)
 
     def __init__(self, main_window):
         super().__init__()
-        self.main_window = main_window
+        self.main_window = main_window # Main window reference to set fields with incoming data
 
     @pyqtSlot(str)
-    def receiveDataFromJs(self, data):
+    def receive_data_from_js(self, data):
+        # Parse data
         print(f"Data received from JavaScript: {data}")
-        # Here, parse the received JSON data and update the UI
-        import json
         parsed_data = json.loads(data)
-        self.updateUI(parsed_data)
+        self.update_ui(parsed_data)
 
-    def updateUI(self, parsed_data):
+    def update_ui(self, parsed_data):
+        # Data we want to keep
         key_to_widget = {
             "id": self.main_window.field_id_label,
             "gewas": self.main_window.field_crop_label,
             "category": self.main_window.field_category_label,
         }
 
+        # Add data to UI
         for key, value in parsed_data.items():
             widget = key_to_widget.get(key)
             if widget:
@@ -46,6 +48,7 @@ class Backend(QObject):
                     widget.setCurrentText(value)
 
         print(f"Updated UI with data: {parsed_data}")
+        self.send_data_to_js.emit("hoi")
 
 
 class MainWindow(QMainWindow):
@@ -53,9 +56,9 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("Weed Detection Mapping")
-        self.textColor = 'rgb(188, 190, 196)'
-        self.backgroundDark = 'rgb(30, 31, 34)'
-        self.backgroundLight = 'rgb(43, 45, 48)'
+        self.text_color = 'rgb(188, 190, 196)'
+        self.background_dark = 'rgb(30, 31, 34)'
+        self.background_light = 'rgb(43, 45, 48)'
         self.big_font = QFont("Courier New", 20)
         self.small_font = QFont("Courier New", 15)
 
@@ -69,40 +72,48 @@ class MainWindow(QMainWindow):
         self.field_category_label = QLabel("Field category: Not selected")
         self.field_runs_label = QLabel("Field runs:")
 
+        self.map_frame = QFrame()
+        self.map_frame.setStyleSheet(f"background-color: {self.background_dark};")
 
         self.centers = centers
         self.classes = classes
 
+        # Set up QWebChannel
+        self.web_channel = QWebChannel()
+        self.backend = Backend(self)
+
         self.db = DatabaseHandler()
 
-        self.mainUI()
+        self.main_ui()
         self.showMaximized()
 
-    def mainUI(self):
+    def main_ui(self):
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
         grid = QGridLayout(central_widget)
 
-        grid.addWidget(self.settingsFrame(), 0, 0)
+        grid.addWidget(self.settings_frame(), 0, 0)
         grid.addWidget(self.mapFrame(), 0, 1)
 
+        # Settings gets 2/7 width, map gets 5/7
         grid.setColumnStretch(0, 2)
         grid.setColumnStretch(1, 5)
 
-    def settingsFrame(self):
-        settingsFrame = QFrame()
-        settingsFrame.setStyleSheet(f"background-color: {self.backgroundLight};")
+    def settings_frame(self):
+        settings_frame = QFrame()
+        settings_frame.setStyleSheet(f"background-color: {self.background_light};")
 
         # Create a QTabWidget for tabs
-        tabs = QTabWidget(settingsFrame)
-        tabs.setStyleSheet(f"background-color: {self.backgroundLight}; color: {self.textColor};")
+        tabs = QTabWidget(settings_frame)
+        tabs.setStyleSheet(f"background-color: {self.background_light}; color: {self.text_color};")
 
+        # Add data from db to the dropdowns
         self.populate_dropdowns()
 
         # Create tabs
-        fields_tab = self.createTab("Fields")
-        crops_tab = self.createTab("Crops")
-        runs_tab = self.createTab("Runs")
+        fields_tab = self.create_tab("Fields")
+        crops_tab = self.create_tab("Crops")
+        runs_tab = self.create_tab("Runs")
 
         # Add tabs to the tab widget
         tabs.addTab(fields_tab, "Fields")
@@ -110,15 +121,13 @@ class MainWindow(QMainWindow):
         tabs.addTab(runs_tab, "Runs")
 
         # Add tabs to the settingsFrame layout
-        layout = QVBoxLayout(settingsFrame)
+        layout = QVBoxLayout(settings_frame)
         layout.addWidget(tabs)
 
-        return settingsFrame
+        return settings_frame
 
-    def createTab(self, label_text):
-        """
-        Create a tab containing a label and a dropdown list.
-        """
+    def create_tab(self, label_text):
+        # Create tab of settings frame
         tab = QWidget()
         tab_layout = QVBoxLayout(tab)
         tab_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -128,8 +137,9 @@ class MainWindow(QMainWindow):
         # Add a label and dropdown to the tab
         label = QLabel(label_text + ":")
         dropdown = QComboBox()
-        dropdown.setStyleSheet(f"color: {self.textColor};")
+        dropdown.setStyleSheet(f"color: {self.text_color};")
 
+        # Check which we want
         if label_text == "Runs":
             tab_layout = self.define_runs_dropdown(label, tab_layout)
         if label_text == "Fields":
@@ -142,42 +152,48 @@ class MainWindow(QMainWindow):
     def define_field_tab(self, tab_layout):
         dropdown = self.field_dropdown
 
+        # Existing fields from db
         own_fields_label = QLabel()
         own_fields_label.setText("Fields:")
-        own_fields_label.setStyleSheet(f"color: {self.textColor};")
+        own_fields_label.setStyleSheet(f"color: {self.text_color};")
         own_fields_label.setFont(self.big_font)
-        info_label = QLabel()
-        info_label.setText("Info:")
-        info_label.setFont(self.big_font)
-        info_label.setStyleSheet(f"color: {self.textColor};")
 
         tab_layout.addWidget(own_fields_label)
         tab_layout.addWidget(dropdown)
 
+        # Spacer for better UI
         spacer = QSpacerItem(20, 70, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
         tab_layout.addItem(spacer)
 
-        self.field_id_label.setFont(self.small_font)
-        self.field_id_label.setStyleSheet(f"color: {self.textColor};")
-        self.field_category_label.setFont(self.small_font)
-        self.field_category_label.setStyleSheet(f"color: {self.textColor};")
-        self.field_crop_label.setFont(self.small_font)
-        self.field_crop_label.setStyleSheet(f"color: {self.textColor};")
-
-        self.field_runs_label.setFont(self.big_font)
-        self.field_runs_label.setStyleSheet(f"color: {self.textColor};")
+        # Info from clicked field
+        info_label = QLabel()
+        info_label.setText("Info:")
+        info_label.setFont(self.big_font)
+        info_label.setStyleSheet(f"color: {self.text_color};")
 
         tab_layout.addWidget(info_label)
         tab_layout.addWidget(self.field_id_label)
         tab_layout.addWidget(self.field_crop_label)
         tab_layout.addWidget(self.field_category_label)
         tab_layout.addItem(spacer)
+
+        # Runs on selected field
+        self.field_id_label.setFont(self.small_font)
+        self.field_id_label.setStyleSheet(f"color: {self.text_color};")
+        self.field_category_label.setFont(self.small_font)
+        self.field_category_label.setStyleSheet(f"color: {self.text_color};")
+        self.field_crop_label.setFont(self.small_font)
+        self.field_crop_label.setStyleSheet(f"color: {self.text_color};")
+        self.field_runs_label.setFont(self.big_font)
+        self.field_runs_label.setStyleSheet(f"color: {self.text_color};")
+
         tab_layout.addWidget(self.field_runs_label)
         tab_layout.addWidget(self.field_runs_dropdown)
 
         return tab_layout
 
     def define_runs_dropdown(self, label, tab_layout):
+        # todo
         dropdown = self.run_dropdown
 
         tab_layout.addWidget(label)
@@ -186,6 +202,7 @@ class MainWindow(QMainWindow):
         return tab_layout
 
     def define_crops_dropdown(self, label, tab_layout):
+        # todo
         dropdown = self.crop_dropdown
         tab_layout.addWidget(label)
         tab_layout.addWidget(dropdown)
@@ -205,23 +222,19 @@ class MainWindow(QMainWindow):
         self.field_runs_dropdown.addItem("None")
 
     def mapFrame(self):
-        self.map_frame = QFrame()
-        self.map_frame.setStyleSheet(f"background-color: {self.backgroundDark};")
-
-        # Create QWebEngineView
+        # Make container to run html map in
         self.web_view = QWebEngineView()
 
-        # Enable LocalContentCanAccessRemoteUrls
+        # Let web_page access Open Street Map
         self.web_view.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
 
-        # Set up QWebChannel // todo
-        self.web_channel = QWebChannel()
-        self.backend = Backend(self)
+
         self.web_channel.registerObject("backend", self.backend)
         self.web_view.page().setWebChannel(self.web_channel)
 
         # Load the map.html file
-        html_file = QUrl.fromLocalFile("/home/remco/Afstudeerstage/PythonScripts/AgronomischePerformanceMeting/LiveProcessing/UI/_map.html")  # Replace with your actual path
+        html_file = QUrl.fromLocalFile(
+            "/home/remco/Afstudeerstage/PythonScripts/AgronomischePerformanceMeting/LiveProcessing/UI/_map.html")
         self.web_view.setUrl(html_file)
 
         # Add QWebEngineView to the layout
@@ -229,30 +242,3 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.web_view)
 
         return self.map_frame
-
-    def createScene(self):
-        pass
-
-    def drawGrid(self, scene):
-        grid_size = 50  # Size between grid lines
-
-        width = self.map_frame.width()
-        height = self.map_frame.height()
-
-        pen = QPen(QColor(80, 80, 80), 1)  # Grid line color
-
-        # Draw vertical grid lines
-        for x in range(0, width + 1, grid_size):
-            scene.addLine(x, 0, x, height, pen)
-
-        # Draw horizontal grid lines
-        for y in range(0, height + 1, grid_size):
-            scene.addLine(0, y, width, y, pen)
-
-        # No need to draw axes below zero
-        axis_pen = QPen(QColor(255, 255, 255), 2)  # Axis line color
-        scene.addLine(0, 0, width, 0, axis_pen)  # X-axis at top
-        scene.addLine(0, 0, 0, height, axis_pen)  # Y-axis at left
-
-        # Set scene dimensions
-        scene.setSceneRect(0, 0, width, height)

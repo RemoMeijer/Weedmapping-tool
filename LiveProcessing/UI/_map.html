@@ -23,7 +23,7 @@
 
 <script>
     // Initialize the map
-    var map = L.map('map').setView([51.515, 3.65], 12);
+    let map = L.map('map').setView([51.515, 3.65], 12);
 
     // Tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -31,25 +31,28 @@
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    var selectedLayer = null;
+    let lastSelectedLayer = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         // Set up the WebChannel
         new QWebChannel(qt.webChannelTransport, (channel) => {
             window.backend = channel.objects.backend;
 
-            // Example: Send data from Python to JS
-            backend.sendDataToJs.connect((data) => {
+            // Data from python
+            backend.send_data_to_js.connect((data) => {
                 console.log("Data received from Python:", data);
+
             });
         });
     });
 
+    // Action when clicked on land plot
     function onPolygonClick(e) {
-        var layer = e.target;
+        let layer = e.target;
 
-         if (selectedLayer) {
-            selectedLayer.setStyle({
+        // Turn last selected layer back to blue
+        if (lastSelectedLayer) {
+            lastSelectedLayer.setStyle({
                 color: '#ff7800', // Original color
                 weight: 5,
                 opacity: 0.65
@@ -63,14 +66,16 @@
             opacity: 0.8
         });
 
-        selectedLayer = layer;
+        // Make layer lastSelectedLayer, when clicked again, it will turn back unselected color
+        lastSelectedLayer = layer;
 
+        // Centre map on land plot
         var bounds = layer.getBounds();
         map.fitBounds(bounds);
 
-        // Send data to Python
+        // Send data to Python in JSON
         var props = layer.feature.properties;
-        backend.receiveDataFromJs(JSON.stringify(props));
+        backend.receive_data_from_js(JSON.stringify(props));
     }
 
     // Bind events to each feature
@@ -85,11 +90,13 @@
         .then(response => response.json())
         .then(data => {
             L.geoJSON(data, {
+                // Color and fill plots
                 style: {
                     "color": "#ff7800",
                     "weight": 5,
                     "opacity": 0.65
                 },
+                // Add click features to each plot
                 onEachFeature: onEachFeature
             }).addTo(map);
         })
