@@ -1,34 +1,31 @@
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import Qt, QUrl, QObject, pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QColor, QBrush, QPen
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QGraphicsEllipseItem, QComboBox, QLabel, \
     QVBoxLayout, QTabWidget, QGraphicsView
 
 from Database.database_handler import DatabaseHandler
 
 
-class ClickableEllipse(QGraphicsEllipseItem):
-    def __init__(self, x, y, size, cls):
-        super().__init__(x - size / 2, y - size / 2, size, size)  # Center the ellipse
-        self.setBrush(QBrush(QColor.fromRgbF(*cls)))  # Set color from class mapping
-        self.setAcceptHoverEvents(True)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.class_color = cls  # Save the color for hover events
+class Backend(QObject):
+    # Signal to send data from Python to JavaScript
+    sendDataToJs = pyqtSignal(str)
 
-    def hoverEnterEvent(self, event):
-        self.setBrush(QBrush(QColor("yellow")))  # Change color on hover
-        super().hoverEnterEvent(event)
+    @pyqtSlot(str)
+    def receiveDataFromJs(self, data):
+        print(f"Data received from JavaScript: {data}")
+        # Here, parse the received JSON data and update the UI
+        import json
+        parsed_data = json.loads(data)
+        field = parsed_data.get("gewas", "Unknown")  # Example: Get the "gewas" property
+        crop = parsed_data.get("category", "Unknown")
+        self.updateUI(field, crop)
 
-    def hoverLeaveEvent(self, event):
-        self.setBrush(QBrush(QColor.fromRgbF(*self.class_color)))  # Revert color on hover out
-        super().hoverLeaveEvent(event)
-
-    def mousePressEvent(self, event):
-        print(
-            f"Point clicked at ({self.rect().x() + self.rect().width() / 2}, {self.rect().y() + self.rect().height() / 2})")  # Placeholder action
-        super().mousePressEvent(event)
-
+    def updateUI(self, field, crop):
+        # Update the dropdowns or other UI elements
+        print(f"Updating UI with Field: {field}, Crop: {crop}")
 
 class MainWindow(QMainWindow):
     def __init__(self, centers, classes):
@@ -143,6 +140,10 @@ class MainWindow(QMainWindow):
         self.web_view.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
 
         # Set up QWebChannel // todo
+        self.web_channel = QWebChannel()
+        self.backend = Backend()
+        self.web_channel.registerObject("backend", self.backend)
+        self.web_view.page().setWebChannel(self.web_channel)
 
         # Load the map.html file
         html_file = QUrl.fromLocalFile("/home/remco/Afstudeerstage/PythonScripts/AgronomischePerformanceMeting/LiveProcessing/UI/_map.html")  # Replace with your actual path

@@ -19,7 +19,7 @@
 <div id="map"></div>
 
 <script src="node_modules/leaflet/dist/leaflet.js"></script>
-<script src="qwebchannel.js"></script> <!-- Include QWebChannel -->
+<script src="qwebchannel.js"></script>
 
 <script>
     // Initialize the map
@@ -30,6 +30,18 @@
         maxZoom: 19,
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Set up the WebChannel
+        new QWebChannel(qt.webChannelTransport, (channel) => {
+            window.backend = channel.objects.backend;
+
+            // Example: Send data from Python to JS
+            backend.sendDataToJs.connect((data) => {
+                console.log("Data received from Python:", data);
+            });
+        });
+    });
 
     function onPolygonClick(e) {
         var layer = e.target;
