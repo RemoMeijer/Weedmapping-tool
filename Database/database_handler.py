@@ -1,9 +1,12 @@
 import sqlite3
 from datetime import datetime
+import os
 
 class DatabaseHandler:
-    def __init__(self, db_name="detections.db"):
-        self.conn = sqlite3.connect(db_name)
+    def __init__(self):
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        database_name = os.path.join(script_dir, 'detections.db')
+        self.conn = sqlite3.connect(database_name)
         self.cursor = self.conn.cursor()
         self._initialize_db()
 

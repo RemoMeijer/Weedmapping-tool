@@ -27,6 +27,8 @@ class ImageStitcher:
         return [str(path.relative_to('.')) for path in Path(self.temp_folder).rglob(f'{img_set}*')]
 
     def stitch_images(self):
+        last_image_width = 0
+
         all_images = natsorted([
             f for f in os.listdir(self.source_folder)
             if f.endswith(('.jpg', '.jpeg', '.png'))
@@ -80,3 +82,5 @@ class ImageStitcher:
 
         # Remove folder
         shutil.rmtree(self.temp_folder)
+
+        return self.offset + last_image_width
