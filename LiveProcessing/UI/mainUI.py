@@ -168,8 +168,13 @@ class MainWindow(QMainWindow):
             self.define_crops_dropdown(label, tab_layout)
             return tab
 
+    def goto_field_on_map(self):
+        field = self.field_dropdown.currentText()
+        self.backend.send_data_to_js.emit(field)
+
     def define_field_tab(self, tab_layout):
         dropdown = self.field_dropdown
+        dropdown.currentIndexChanged.connect(self.goto_field_on_map)
 
         # Existing fields from db
         own_fields_label = QLabel()
