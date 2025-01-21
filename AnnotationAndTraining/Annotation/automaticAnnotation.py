@@ -170,17 +170,17 @@ def loop_dir_and_annotate(images_dir):
     # When done, destroy windows
     cv2.destroyAllWindows()
 
-# Get frames to extract from a video, using the VideoFrameExtractor class
-def create_frames(starting_number):
-    extractor = VideoFrameExtractor(video_path=video_folder, frames_folder=frames_folder, frame_interval=15, starting_number=starting_number)
-    extractor.extract_frames()
+# # Get frames to extract from a video, using the VideoFrameExtractor class
+# def create_frames(starting_number):
+#     extractor = VideoFrameExtractor(video_path=video_folder, frames_folder=frames_folder, frame_interval=15, starting_number=starting_number)
+#     extractor.extract_frames()
 
 # Define video input and frame output folder
-video_folder = './DoneVideos/zed1_2024-07-18_12h-00m-25s-485_top.mp4'
+# video_folder = './DoneVideos/zed1_2024-07-18_12h-00m-25s-485_top.mp4'
 frames_folder = './images'
 
 # Create frames with offset
-create_frames(176)
+# create_frames(176)
 
 # Annotate
 loop_dir_and_annotate('images')

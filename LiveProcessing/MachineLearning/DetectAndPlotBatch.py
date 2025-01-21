@@ -12,10 +12,12 @@ from Database.database_handler import DatabaseHandler
 
 
 class BatchProcessor:
-    def __init__(self, batch_folder, offset_file, model_file, distance_threshold=0):
+    def __init__(self, batch_folder, offset_file, model_file, field_id, distance_threshold=0, crop='gras'):
         self.batch_folder = batch_folder
         self.offset_file = offset_file
         self.model_file = model_file
+        self.field_id = field_id
+        self.crop = crop
         self.distance_threshold = distance_threshold
 
         # Load model
@@ -69,13 +71,12 @@ class BatchProcessor:
 
     def process_batches(self):
         run_id = self.db.create_new_run()
-        field_name = 'Field A'
-        crop_name = 'A good crop'
 
-        self.db.ensure_field_exists(field_name)
-        self.db.ensure_crop_exists(crop_name)
+        self.db.ensure_field_exists(self.field_id)
+        self.db.ensure_crop_exists(self.crop)
 
-        self.db.add_run(run_id=run_id, field_name=field_name, crop_name=crop_name)
+        print(self.field_id)
+        self.db.add_run(run_id=run_id, field_name=self.field_id, crop_name=self.crop)
 
         # Process all batches, apply offsets, and generate combined plot.
         batches = natsorted(self.offset_data.keys())

@@ -25,7 +25,8 @@ class StateManager:
             shutil.rmtree(self.stitched_folder)
             print("\tRemoved stitched folder\n")
 
-    def make_run(self, video_path):
+
+    def make_run(self, video_path, field_id):
         video_path = os.path.join(self.video_folder, video_path)
         extractor = VideoFrameExtractor(video_path=video_path, frames_folder=self.frames_folder, frame_interval=8)
         extractor.extract_frames()
@@ -34,14 +35,14 @@ class StateManager:
         total_width = stitcher.stitch_images()
 
         processor = BatchProcessor(batch_folder=self.stitched_folder, offset_file=f'{self.stitched_folder}/batch_offsets.json',
-                                   model_file=self.ml_file)
+                                   model_file=self.ml_file, field_id=field_id)
         centers, classes = processor.process_batches()
         self.cleanup()
 
         # todo remove mock start and end gps, work with live data
         mapper = GPSMapper(
-            start_gps=(51.34273, 3.34362),
-            end_gps=(51.34247, 3.34392),
+            start_gps=(51.465959, 3.628151),
+            end_gps=(51.467815, 3.626611),
             frame_width=total_width,
             frame_height=1080)
 

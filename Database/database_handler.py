@@ -35,9 +35,10 @@ class DatabaseHandler:
                 date_time DATETIME DEFAULT CURRENT_TIMESTAMP,
                 field_id INTEGER NOT NULL,
                 crop_id INTEGER NOT NULL,
-                FOREIGN KEY (field_id) REFERENCES Fields(id),
+                FOREIGN KEY (field_id) REFERENCES Fields(id) ON DELETE CASCADE,
                 FOREIGN KEY (crop_id) REFERENCES Crops(id)
-            );
+);
+
         ''')
 
         # Create Detections table
@@ -91,27 +92,21 @@ class DatabaseHandler:
 
     def add_run(self, run_id, field_name, crop_name):
         """Add a new run, associating it with a field and a crop."""
-        # Get field_id and crop_id
-        self.cursor.execute('SELECT id FROM Fields WHERE name = ?', (field_name,))
-        field = self.cursor.fetchone()
-        if not field:
-            print(f"Field '{field_name}' does not exist.")
-            return
-
+        # Ensure the crop exists
         self.cursor.execute('SELECT id FROM Crops WHERE name = ?', (crop_name,))
         crop = self.cursor.fetchone()
         if not crop:
             print(f"Crop '{crop_name}' does not exist.")
             return
 
-        field_id = field[0]
         crop_id = crop[0]
 
         try:
+            # Directly use field_name as the field_id
             self.cursor.execute('''
                 INSERT INTO Runs (run_id, field_id, crop_id)
                 VALUES (?, ?, ?)
-            ''', (run_id, field_id, crop_id))
+            ''', (run_id, field_name, crop_id))
             self.conn.commit()
         except sqlite3.IntegrityError:
             print(f"Run ID '{run_id}' already exists.")
@@ -140,15 +135,14 @@ class DatabaseHandler:
         ''', (crop_name,))
         return self.cursor.fetchall()
 
-    def get_runs_by_field(self, field_name):
-        """Get all runs for a specific field."""
+    def get_runs_by_field_id(self, field_id):
+        """Get all runs for a specific field ID."""
         self.cursor.execute('''
             SELECT r.run_id, r.date_time, c.name AS crop_name
             FROM Runs r
-            JOIN Fields f ON r.field_id = f.id
             JOIN Crops c ON r.crop_id = c.id
-            WHERE f.name = ?
-        ''', (field_name,))
+            WHERE r.field_id = ?
+        ''', (field_id,))
         return self.cursor.fetchall()
 
     def get_runs_in_timeframe(self, start_date, end_date):

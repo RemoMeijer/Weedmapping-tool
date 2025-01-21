@@ -47,9 +47,21 @@ class Backend(QObject):
                     if value not in [widget.itemText(i) for i in range(widget.count())]:
                         widget.addItem(value)
                     widget.setCurrentText(value)
-
+        self.update_field_runs_dropdown(parsed_data)
         print(f"Updated UI with data: {parsed_data}")
-        self.send_data_to_js.emit("hoi")
+
+    def update_field_runs_dropdown(self, data):
+        field_id = data["id"]
+        field_id_full = "Field_" + str(field_id)
+        print(f"Field ID: {field_id_full}")
+        field_runs = self.main_window.db.get_runs_by_field_id(field_id_full)
+        print(f"Runs with ID: {field_runs}")
+        run_ids = [run[0] for run in field_runs]
+        self.main_window.field_runs_dropdown.clear()
+        if len(run_ids) != 0:
+            self.main_window.field_runs_dropdown.addItems(run_ids)
+        else:
+            self.main_window.field_runs_dropdown.addItem("None")
 
 
 class MainWindow(QMainWindow):
@@ -70,6 +82,7 @@ class MainWindow(QMainWindow):
         self.field_runs_dropdown = QComboBox()
         self.crop_dropdown = QComboBox()
         self.run_dropdown = QComboBox()
+        self.generate_field_combobox = QComboBox()
 
         self.field_id_label = QLabel("Field ID: Not selected")
         self.field_crop_label = QLabel("Field crop: Not selected")
@@ -230,9 +243,8 @@ class MainWindow(QMainWindow):
         tab_layout.addWidget(self.available_videos)
         tab_layout.addWidget(field_text)
 
-        generate_field_combobox = QComboBox()
-        generate_field_combobox.addItems([self.field_dropdown.itemText(i) for i in range(self.field_dropdown.count())])
-        tab_layout.addWidget(generate_field_combobox)
+        self.generate_field_combobox.addItems([self.field_dropdown.itemText(i) for i in range(self.field_dropdown.count())])
+        tab_layout.addWidget(self.generate_field_combobox)
 
         generate_run_button = QPushButton("Generate run", self)
         generate_run_button.clicked.connect(self.generate_run)
@@ -244,8 +256,9 @@ class MainWindow(QMainWindow):
 
     def generate_run(self):
         selected_video = self.available_videos.currentText()
-        if selected_video:
-            self.state_manager.make_run(selected_video)
+        selected_field = self.generate_field_combobox.currentText()
+        if selected_video and selected_field:
+            self.state_manager.make_run(selected_video, selected_field)
         else:
             print("No video selected")
 
