@@ -13,7 +13,7 @@ from Database.database_handler import DatabaseHandler
 
 class Backend(QObject):
     # Signal to send data from Python to JavaScript
-    send_data_to_js = pyqtSignal(str)
+    send_data_to_js = pyqtSignal(dict)
 
     def __init__(self, main_window):
         super().__init__()
@@ -23,8 +23,8 @@ class Backend(QObject):
     def receive_data_from_js(self, data):
         # Parse data
         print(f"Data received from JavaScript: {data}")
-        parsed_data = json.loads(data)
-        self.update_ui(parsed_data)
+        # parsed_data = json.loads(data)
+        # self.update_ui(parsed_data)
 
     def update_ui(self, parsed_data):
         # Data we want to keep
@@ -175,7 +175,15 @@ class MainWindow(QMainWindow):
 
     def goto_field_on_map(self):
         field = self.field_dropdown.currentText()
-        self.backend.send_data_to_js.emit(field)
+        field_id = field.replace("Field_", "")
+
+        data = {
+            "identifier": "map",  # Add an identifier
+            "field_id": field_id  # Include the field ID
+        }
+
+        self.backend.send_data_to_js.emit(data)
+
 
     def define_field_tab(self, tab_layout):
         dropdown = self.field_dropdown

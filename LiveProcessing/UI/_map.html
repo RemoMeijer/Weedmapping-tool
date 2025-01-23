@@ -22,7 +22,6 @@
 <script src="qwebchannel.js"></script>
 
 <script>
-    // Initialize the map
     let map = L.map('map').setView([51.466582, 3.631227], 16);
 
     // Tile layer
@@ -32,75 +31,113 @@
     }).addTo(map);
 
     let lastSelectedLayer = null;
+    let geojsonLayer = null;
 
+    // Set up the WebChannel
     document.addEventListener('DOMContentLoaded', () => {
-        // Set up the WebChannel
         new QWebChannel(qt.webChannelTransport, (channel) => {
             window.backend = channel.objects.backend;
 
-            // Data from python
+            // Handle data sent from Python
             backend.send_data_to_js.connect((data) => {
-                console.log("Data received from Python:", data);
+                backend.receive_data_from_js(data)
 
+                let parsedData = JSON.parse(data);
+
+                switch (parsedData.identifier) {
+                    case "map":
+                        let fieldId = parsedData.field_id;
+                        selectMap(Number(fieldId))
+                        break;
+                    default:
+                        break;
+                }
             });
         });
     });
+
+    function selectMap(field_id) {
+        if (geojsonLayer) {
+            geojsonLayer.eachLayer((layer) => {
+                if (layer.feature.properties.id === field_id) {
+                    backend.receive_data_from_js(JSON.stringify(layer.feature.properties));
+
+                    // Highlight the field
+                    if (lastSelectedLayer) {
+                        lastSelectedLayer.setStyle({
+                            color: '#ff7800', // Reset previous layer to original color
+                            weight: 5,
+                            opacity: 0.65
+                        });
+                    }
+
+                    layer.setStyle({
+                        color: '#4070ff',
+                        weight: 5,
+                        opacity: 0.8
+                    });
+
+                    // Center the map on the selected field
+                    map.fitBounds(layer.getBounds());
+
+                    // Remember this layer as the last selected one
+                    lastSelectedLayer = layer;
+                }
+            });
+        }
+    }
 
     // Action when clicked on land plot
     function onPolygonClick(e) {
         let layer = e.target;
 
-        // Turn last selected layer back to blue
+        // Reset the previous layer's style
         if (lastSelectedLayer) {
             lastSelectedLayer.setStyle({
-                color: '#ff7800', // Original color
+                color: '#ff7800',
                 weight: 5,
                 opacity: 0.65
             });
         }
 
-        // Update the style of the clicked layer to blue
+        // Highlight the clicked layer
         layer.setStyle({
             color: '#4070ff',
             weight: 5,
             opacity: 0.8
         });
 
-        // Make layer lastSelectedLayer, when clicked again, it will turn back unselected color
         lastSelectedLayer = layer;
 
-        // Centre map on land plot
-        var bounds = layer.getBounds();
-        map.fitBounds(bounds);
+        // Center map on the selected field
+        map.fitBounds(layer.getBounds());
 
-        // Send data to Python in JSON
-        var props = layer.feature.properties;
-        backend.receive_data_from_js(JSON.stringify(props));
+        // Send field properties back to Python
+        backend.receive_data_from_js(JSON.stringify(layer.feature.properties));
     }
 
-    // Bind events to each feature
+    // Bind events to each GeoJSON feature
     function onEachFeature(feature, layer) {
         layer.on({
             click: onPolygonClick
         });
     }
 
-    // Load GeoJSON from file
+    // Load GeoJSON data
     fetch('WillemPercelen.geojson')
         .then(response => response.json())
         .then(data => {
-            L.geoJSON(data, {
-                // Color and fill plots
+            geojsonLayer = L.geoJSON(data, {
                 style: {
                     "color": "#ff7800",
                     "weight": 5,
                     "opacity": 0.65
                 },
-                // Add click features to each plot
                 onEachFeature: onEachFeature
             }).addTo(map);
         })
         .catch(error => console.error("Error loading GeoJSON:", error));
+
 </script>
 </body>
 </html>
