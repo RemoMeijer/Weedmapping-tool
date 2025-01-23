@@ -3,12 +3,11 @@ import json
 import math
 import cv2 as cv
 import numpy as np
-import matplotlib.pyplot as plt
 from natsort import natsorted
 from ultralytics import RTDETR
-from ultralytics.utils.plotting import plot_results
 
 from Database.database_handler import DatabaseHandler
+from LiveProcessing.GpsConversion.ConvertVideoToGps import GPSMapper
 
 
 class BatchProcessor:
@@ -69,7 +68,7 @@ class BatchProcessor:
         last_image_width = self.offset_data[name][1]
         return x + last_image_width > image_width
 
-    def process_batches(self):
+    def process_batches(self, start_gps, end_gps, total_width):
         run_id = self.db.create_new_run()
 
         self.db.ensure_field_exists(self.field_id)
@@ -127,38 +126,11 @@ class BatchProcessor:
                     self.combined_centers.append(valid_center)
                     self.combined_classes.append(valid_class)
 
-                    # Insert into db
-                    self.db.add_detection(run_id=run_id, x=valid_center[0], y=valid_center[1], detection_class=valid_class)
-                    self.db.conn.commit()
 
+        gps_mapper = GPSMapper(start_gps=start_gps, end_gps=end_gps, frame_width=total_width, frame_height=self.max_image_height)
+        combined_centers_gps = gps_mapper.map_to_gps(self.combined_centers, self.combined_classes)
 
-        # self._plot_combined_results()
-        return self.combined_centers, self.combined_classes
-
-    def _plot_combined_results(self):
-        # Plot all detected centers across batches
-        unique_classes = list(set(self.combined_classes))
-        color_map = plt.get_cmap('tab10', len(unique_classes))
-        class_colors = {cls: color_map(i) for i, cls in enumerate(unique_classes)}
-
-        plt.figure(figsize=(15, 8))
-        for (x, y), cls in zip(self.combined_centers, self.combined_classes):
-            plt.scatter(x, y, color=class_colors[cls], s=50,
-                        label=f'Class {cls}' if cls not in plt.gca().get_legend_handles_labels()[1] else "")
-
-        # Reverse axes for proper alignment
-        max_x = max(x for x, _ in self.combined_centers)
-        plt.xlim(max_x, 0)  # Reverse x-axis
-        plt.ylim(self.max_image_height, 0)  # Reverse y-axis
-
-        # Add legend
-        handles = [
-            plt.Line2D([0], [0], marker='o', color=color_map(i), label=f'Class {cls}', linestyle='', markersize=10)
-            for i, cls in enumerate(unique_classes)]
-        plt.legend(handles=handles, title="Classes")
-
-        plt.xlabel('X-coordinate')
-        plt.ylabel('Y-coordinate')
-        plt.title('Combined Bounding Box Centers Across Batches')
-        plt.grid(True)
-        plt.show()
+        # Insert into db
+        for centre, classes in zip(combined_centers_gps, self.combined_classes):
+            self.db.add_detection(run_id=run_id, x=centre[0], y=centre[1],detection_class=classes)
+            self.db.conn.commit()

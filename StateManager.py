@@ -26,7 +26,7 @@ class StateManager:
             print("\tRemoved stitched folder\n")
 
 
-    def make_run(self, video_path, field_id):
+    def make_run(self, video_path, field_id, start_gps, end_gps):
         video_path = os.path.join(self.video_folder, video_path)
         extractor = VideoFrameExtractor(video_path=video_path, frames_folder=self.frames_folder, frame_interval=8)
         extractor.extract_frames()
@@ -34,20 +34,11 @@ class StateManager:
         stitcher = ImageStitcher(source_folder=self.frames_folder, result_folder=self.stitched_folder)
         total_width = stitcher.stitch_images()
 
-        processor = BatchProcessor(batch_folder=self.stitched_folder, offset_file=f'{self.stitched_folder}/batch_offsets.json',
-                                   model_file=self.ml_file, field_id=field_id)
-        centers, classes = processor.process_batches()
+        processor = BatchProcessor(batch_folder=self.stitched_folder, offset_file=f'{self.stitched_folder}/batch_offsets.json', model_file=self.ml_file, field_id=field_id)
+        processor.process_batches(start_gps, end_gps, total_width)
         self.cleanup()
 
-        # todo remove mock start and end gps, work with live data
-        mapper = GPSMapper(
-            start_gps=(51.465959, 3.628151),
-            end_gps=(51.467815, 3.626611),
-            frame_width=total_width,
-            frame_height=1080)
-
-        weed_crop_gps_coordinates = mapper.map_to_gps(centers, classes)
-        print(weed_crop_gps_coordinates)
+        print('Run made')
 
     def calculate_delta(self):
         pass

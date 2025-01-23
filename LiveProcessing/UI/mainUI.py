@@ -7,7 +7,7 @@ from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QComboBox, QLabel, \
-    QVBoxLayout, QTabWidget, QSpacerItem, QSizePolicy, QPushButton
+    QVBoxLayout, QTabWidget, QSpacerItem, QSizePolicy, QPushButton, QLineEdit, QHBoxLayout
 
 from Database.database_handler import DatabaseHandler
 
@@ -99,6 +99,11 @@ class MainWindow(QMainWindow):
         self.spacer = QSpacerItem(20, 70, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
 
         self.available_videos = QComboBox()
+
+        self.start_gps_input_NS = QLineEdit()
+        self.start_gps_input_EW = QLineEdit()
+        self.end_gps_input_NS = QLineEdit()
+        self.end_gps_input_EW = QLineEdit()
 
         self.db = DatabaseHandler()
 
@@ -221,16 +226,20 @@ class MainWindow(QMainWindow):
         tab_layout.addWidget(dropdown)
         tab_layout.addItem(self.spacer)
 
+        # Video generation section
         video_generate_text = QLabel()
         video_generate_text.setText("Generate run from video file:")
         video_generate_text.setStyleSheet(f"color: {self.text_color};")
         video_generate_text.setFont(self.small_font)
+        tab_layout.addWidget(video_generate_text)
 
-        video_text = QLabel()
-        video_text.setText("Video:")
-        video_text.setStyleSheet(f"color: {self.text_color};")
-        video_text.setFont(self.small_font)
+        # Video Label and ComboBox in one row
+        video_row_layout = QHBoxLayout()
+        video_label = QLabel("Video:")
+        video_label.setStyleSheet(f"color: {self.text_color};")
+        video_label.setFont(self.small_font)
 
+        self.available_videos = QComboBox()
         if os.path.exists(self.video_folder) and os.path.isdir(self.video_folder):
             video_files = [
                 f for f in os.listdir(self.video_folder)
@@ -238,19 +247,50 @@ class MainWindow(QMainWindow):
             ]
             self.available_videos.addItems(video_files)
 
-        field_text = QLabel()
-        field_text.setText("Field of run:")
-        field_text.setStyleSheet(f"color: {self.text_color};")
-        field_text.setFont(self.small_font)
+        video_row_layout.addWidget(video_label)
+        video_row_layout.addWidget(self.available_videos)
+        tab_layout.addLayout(video_row_layout)
 
-        tab_layout.addWidget(video_generate_text)
-        tab_layout.addWidget(video_text)
-        tab_layout.addWidget(self.available_videos)
-        tab_layout.addWidget(field_text)
+        # Field Label and ComboBox in one row
+        field_row_layout = QHBoxLayout()
+        field_label = QLabel("Field:")
+        field_label.setStyleSheet(f"color: {self.text_color};")
+        field_label.setFont(self.small_font)
 
-        self.generate_field_combobox.addItems([self.field_dropdown.itemText(i) for i in range(self.field_dropdown.count())])
-        tab_layout.addWidget(self.generate_field_combobox)
+        self.generate_field_combobox.addItems(
+            [self.field_dropdown.itemText(i) for i in range(self.field_dropdown.count())])
 
+        field_row_layout.addWidget(field_label)
+        field_row_layout.addWidget(self.generate_field_combobox)
+        tab_layout.addLayout(field_row_layout)
+
+        # Start and End GPS input fields in one row
+        gps_input_layout_start = QHBoxLayout()
+        start_gps_label = QLabel("Start GPS:\t")
+        start_gps_label.setStyleSheet(f"color: {self.text_color};")
+        start_gps_label.setFont(self.small_font)
+        self.start_gps_input_NS.setPlaceholderText("Enter N/S coordinate")
+        self.start_gps_input_EW.setPlaceholderText("Enter E/W coordinate")
+
+        gps_input_layout_end = QHBoxLayout()
+        end_gps_label = QLabel("End GPS:\t")
+        end_gps_label.setStyleSheet(f"color: {self.text_color};")
+        end_gps_label.setFont(self.small_font)
+        self.end_gps_input_NS.setPlaceholderText("Enter N/S coordinate")
+        self.end_gps_input_EW.setPlaceholderText("Enter E/W coordinate")
+
+        gps_input_layout_start.addWidget(start_gps_label)
+        gps_input_layout_start.addWidget(self.start_gps_input_NS)
+        gps_input_layout_start.addWidget(self.start_gps_input_EW)
+
+        gps_input_layout_end.addWidget(end_gps_label)
+        gps_input_layout_end.addWidget(self.end_gps_input_NS)
+        gps_input_layout_end.addWidget(self.end_gps_input_EW)
+
+        tab_layout.addLayout(gps_input_layout_start)
+        tab_layout.addLayout(gps_input_layout_end)
+
+        # Generate Run button
         generate_run_button = QPushButton("Generate run", self)
         generate_run_button.clicked.connect(self.generate_run)
 
@@ -262,10 +302,12 @@ class MainWindow(QMainWindow):
     def generate_run(self):
         selected_video = self.available_videos.currentText()
         selected_field = self.generate_field_combobox.currentText()
-        if selected_video and selected_field:
-            self.state_manager.make_run(selected_video, selected_field)
+        if selected_video and selected_field and self.start_gps_input_EW.text() and self.start_gps_input_NS.text() and self.end_gps_input_NS.text() and self.end_gps_input_EW.text():
+            start_gps = (self.start_gps_input_NS.text(), self.start_gps_input_EW.text())
+            end_gps = (self.end_gps_input_NS.text(), self.end_gps_input_EW.text())
+            self.state_manager.make_run(selected_video, selected_field, start_gps, end_gps)
         else:
-            print("No video selected")
+            print("No video or invalid GPS")
 
     def define_crops_dropdown(self, label, tab_layout):
         # todo

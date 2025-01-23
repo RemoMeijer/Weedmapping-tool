@@ -1,6 +1,4 @@
 from pyproj import Geod
-import numpy as np
-
 
 class GPSMapper:
     def __init__(self, start_gps, end_gps, frame_width, frame_height):
