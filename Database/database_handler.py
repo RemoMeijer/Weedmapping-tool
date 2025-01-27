@@ -58,8 +58,6 @@ class DatabaseHandler:
     def create_new_run(self):
         # Generate a unique run_id
         run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        # self.cursor.execute("INSERT INTO Runs (run_id) VALUES (?)", (run_id,))
-        # self.conn.commit()
         return run_id
 
     def add_field(self, name):
@@ -171,3 +169,20 @@ class DatabaseHandler:
     def close_db(self):
         # Close the database connection
         self.conn.close()
+
+    def get_detections_by_run_id(self, run_id):
+        """Get all detections for a specific run ID."""
+        self.cursor.execute('''
+            SELECT x_coordinate, y_coordinate, class
+            FROM Detections
+            WHERE run_id = ?
+        ''', (run_id,))
+        return self.cursor.fetchall()
+
+    def delete_all_runs_and_detections(self):
+        # Never touch this one lol
+        """Delete all rows from Runs and Detections tables."""
+        self.cursor.execute('DELETE FROM Detections')
+        self.cursor.execute('DELETE FROM Runs')
+        self.conn.commit()
+

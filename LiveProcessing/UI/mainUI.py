@@ -13,7 +13,7 @@ from Database.database_handler import DatabaseHandler
 
 class Backend(QObject):
     # Signal to send data from Python to JavaScript
-    send_data_to_js = pyqtSignal(dict)
+    send_data_to_js = pyqtSignal(str)
 
     def __init__(self, main_window):
         super().__init__()
@@ -22,9 +22,21 @@ class Backend(QObject):
     @pyqtSlot(str)
     def receive_data_from_js(self, data):
         # Parse data
-        print(f"Data received from JavaScript: {data}")
-        # parsed_data = json.loads(data)
-        # self.update_ui(parsed_data)
+        parsed_data = json.loads(data)
+        print(parsed_data)
+        # Check the identifier to handle different types of data
+        identifier = parsed_data.get("identifier")
+
+        if identifier == "field":
+            field_properties = parsed_data.get("properties", {})
+            # print(f"Field data received: {field_properties}")
+
+            # Perform necessary actions with the field properties
+            self.update_ui(field_properties)
+
+        else:
+            print(f"Unknown identifier: {identifier}")
+
 
     def update_ui(self, parsed_data):
         # Data we want to keep
@@ -48,20 +60,20 @@ class Backend(QObject):
                         widget.addItem(value)
                     widget.setCurrentText(value)
         self.update_field_runs_dropdown(parsed_data)
-        print(f"Updated UI with data: {parsed_data}")
 
     def update_field_runs_dropdown(self, data):
         field_id = data["id"]
         field_id_full = "Field_" + str(field_id)
-        print(f"Field ID: {field_id_full}")
+        # print(f"Field ID: {field_id_full}")
         field_runs = self.main_window.db.get_runs_by_field_id(field_id_full)
-        print(f"Runs with ID: {field_runs}")
+        # print(f"Runs with ID: {field_runs}")
         run_ids = [run[0] for run in field_runs]
         self.main_window.field_runs_dropdown.clear()
         if len(run_ids) != 0:
             self.main_window.field_runs_dropdown.addItems(run_ids)
         else:
             self.main_window.field_runs_dropdown.addItem("None")
+
 
 
 class MainWindow(QMainWindow):
@@ -178,16 +190,34 @@ class MainWindow(QMainWindow):
         field_id = field.replace("Field_", "")
 
         data = {
-            "identifier": "map",  # Add an identifier
+            "identifier": "field",  # Add an identifier
             "field_id": field_id  # Include the field ID
         }
 
-        self.backend.send_data_to_js.emit(data)
+        json_data = json.dumps(data)
 
+        self.backend.send_data_to_js.emit(json_data)
+
+    def send_run_detections(self):
+        run_id = self.field_runs_dropdown.currentText()
+        detections = self.db.get_detections_by_run_id(run_id=run_id)
+
+        data = {
+            "identifier": "run_detections",  # Add an identifier
+            "detections": detections  # Include the field ID
+        }
+
+        json_data = json.dumps(data)
+
+        print(json_data)
+
+        self.backend.send_data_to_js.emit(json_data)
 
     def define_field_tab(self, tab_layout):
         dropdown = self.field_dropdown
         dropdown.currentIndexChanged.connect(self.goto_field_on_map)
+
+        self.field_runs_dropdown.currentIndexChanged.connect(self.send_run_detections)
 
         # Existing fields from db
         own_fields_label = QLabel()

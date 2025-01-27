@@ -40,14 +40,14 @@
 
             // Handle data sent from Python
             backend.send_data_to_js.connect((data) => {
-                backend.receive_data_from_js(data)
-
                 let parsedData = JSON.parse(data);
-
                 switch (parsedData.identifier) {
-                    case "map":
+                    case "field":
                         let fieldId = parsedData.field_id;
                         selectMap(Number(fieldId))
+                        break;
+                    case "run_detections":
+                        handleRunDetections(parsedData.detections)
                         break;
                     default:
                         break;
@@ -56,11 +56,46 @@
         });
     });
 
+    function handleRunDetections(detections) {
+        if (window.detectionLayer) {
+            window.detectionLayer.clearLayers();
+        }
+
+        // Create a new layer for detections
+        window.detectionLayer = L.layerGroup();
+
+        // Loop through the detections and add markers to the layer
+        detections.forEach(detection => {
+            const [latitude, longitude, detectionClass] = detection;
+
+            // Choose a color or icon based on the detection class
+            let color = detectionClass === 0 ? 'blue' : 'red'; // Example: blue for 0, red for 1
+
+            // Create a marker
+            const marker = L.circleMarker([latitude, longitude], {
+                radius: 1,
+                color: color,
+                fillColor: color,
+                fillOpacity: 0.8
+            });
+
+            // Add the marker to the detection layer
+            marker.addTo(window.detectionLayer);
+        });
+
+        // Add the detection layer to the map
+        window.detectionLayer.addTo(map);
+    }
+
     function selectMap(field_id) {
         if (geojsonLayer) {
             geojsonLayer.eachLayer((layer) => {
                 if (layer.feature.properties.id === field_id) {
-                    backend.receive_data_from_js(JSON.stringify(layer.feature.properties));
+                    let data_to_send = {
+                        identifier: "field",
+                        properties: layer.feature.properties
+                    }
+                    backend.receive_data_from_js(JSON.stringify(data_to_send));
 
                     // Highlight the field
                     if (lastSelectedLayer) {
@@ -113,7 +148,11 @@
         map.fitBounds(layer.getBounds());
 
         // Send field properties back to Python
-        backend.receive_data_from_js(JSON.stringify(layer.feature.properties));
+        let data_to_send = {
+            identifier: "field",
+            properties: layer.feature.properties
+        }
+        backend.receive_data_from_js(JSON.stringify(data_to_send));
     }
 
     // Bind events to each GeoJSON feature
