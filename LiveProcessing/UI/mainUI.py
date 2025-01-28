@@ -7,7 +7,7 @@ from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QComboBox, QLabel, \
-    QVBoxLayout, QTabWidget, QSpacerItem, QSizePolicy, QPushButton, QLineEdit, QHBoxLayout
+    QVBoxLayout, QTabWidget, QSpacerItem, QSizePolicy, QPushButton, QLineEdit, QHBoxLayout, QMessageBox
 
 from Database.database_handler import DatabaseHandler
 
@@ -41,7 +41,7 @@ class Backend(QObject):
     def update_ui(self, parsed_data):
         # Data we want to keep
         key_to_widget = {
-            "id": self.main_window.field_id_label,
+            "id": self.main_window.field_name_label,
             "gewas": self.main_window.field_crop_label,
             "category": self.main_window.field_category_label,
         }
@@ -61,19 +61,25 @@ class Backend(QObject):
                     widget.setCurrentText(value)
         self.update_field_runs_dropdown(parsed_data)
 
+
     def update_field_runs_dropdown(self, data):
-        field_id = data["id"]
-        field_id_full = "Field_" + str(field_id)
-        # print(f"Field ID: {field_id_full}")
-        field_runs = self.main_window.db.get_runs_by_field_id(field_id_full)
-        # print(f"Runs with ID: {field_runs}")
-        run_ids = [run[0] for run in field_runs]
+        field_name = "Field_" + str(data["id"])
+        if not field_name:
+            print("No field name in JS data")
+            return
+
+        field_id = self.main_window.db.get_field_id_by_field_name(field_name)
+        if not field_id:
+            print(f"No field id found in DB with name {field_name}")
+            return
+
+        field_runs = self.main_window.db.get_runs_by_field_id(field_id)
         self.main_window.field_runs_dropdown.clear()
-        if len(run_ids) != 0:
+        if field_runs:
+            run_ids = [str(run[0]) for run in field_runs]
             self.main_window.field_runs_dropdown.addItems(run_ids)
         else:
-            self.main_window.field_runs_dropdown.addItem("None")
-
+            self.main_window.field_runs_dropdown.addItem("No runs available")
 
 
 class MainWindow(QMainWindow):
@@ -96,7 +102,7 @@ class MainWindow(QMainWindow):
         self.run_dropdown = QComboBox()
         self.generate_field_combobox = QComboBox()
 
-        self.field_id_label = QLabel("Field ID: Not selected")
+        self.field_name_label = QLabel("Field Name: Not selected")
         self.field_crop_label = QLabel("Field crop: Not selected")
         self.field_category_label = QLabel("Field category: Not selected")
         self.field_runs_label = QLabel("Field runs:")
@@ -112,10 +118,10 @@ class MainWindow(QMainWindow):
 
         self.available_videos = QComboBox()
 
-        self.start_gps_input_NS = QLineEdit()
-        self.start_gps_input_EW = QLineEdit()
-        self.end_gps_input_NS = QLineEdit()
-        self.end_gps_input_EW = QLineEdit()
+        self.start_gps_input_lat = QLineEdit()
+        self.start_gps_input_lon = QLineEdit()
+        self.end_gps_input_lat = QLineEdit()
+        self.end_gps_input_lon = QLineEdit()
 
         self.db = DatabaseHandler()
 
@@ -188,7 +194,17 @@ class MainWindow(QMainWindow):
     def goto_field_on_map(self):
         field = self.field_dropdown.currentText()
         field_id = field.replace("Field_", "")
+        self.goto_field(field_id)
 
+    def goto_field_on_map_from_run_tab(self):
+        run_id = self.run_dropdown.currentText()
+        field = self.db.get_field_by_run_id(run_id)
+        if field is not None:
+            field_id = field.replace("Field_", "")
+            self.goto_field(field_id)
+
+
+    def goto_field(self, field_id):
         data = {
             "identifier": "field",  # Add an identifier
             "field_id": field_id  # Include the field ID
@@ -198,26 +214,36 @@ class MainWindow(QMainWindow):
 
         self.backend.send_data_to_js.emit(json_data)
 
-    def send_run_detections(self):
+    def send_run_detections_from_fields_tab(self):
         run_id = self.field_runs_dropdown.currentText()
-        detections = self.db.get_detections_by_run_id(run_id=run_id)
+        self.send_detections(run_id)
 
+    def send_run_detections_from_run_tab(self):
+        run_id = self.run_dropdown.currentText()
+        self.goto_field_on_map_from_run_tab()
+        self.send_detections(run_id)
+
+    def send_detections(self, run_id):
+        # Check if run_id is valid or not default
+        if not run_id or run_id == "No runs available":
+            detections = []
+        else:
+            detections = self.db.get_detections_by_run_id(run_id=run_id)
+
+        # Even with empty detections, they need to be sent to clean the map of the old detections
         data = {
             "identifier": "run_detections",  # Add an identifier
             "detections": detections  # Include the field ID
         }
 
         json_data = json.dumps(data)
-
-        print(json_data)
-
         self.backend.send_data_to_js.emit(json_data)
 
     def define_field_tab(self, tab_layout):
         dropdown = self.field_dropdown
         dropdown.currentIndexChanged.connect(self.goto_field_on_map)
 
-        self.field_runs_dropdown.currentIndexChanged.connect(self.send_run_detections)
+        self.field_runs_dropdown.currentIndexChanged.connect(self.send_run_detections_from_fields_tab)
 
         # Existing fields from db
         own_fields_label = QLabel()
@@ -237,14 +263,14 @@ class MainWindow(QMainWindow):
         info_label.setStyleSheet(f"color: {self.text_color};")
 
         tab_layout.addWidget(info_label)
-        tab_layout.addWidget(self.field_id_label)
+        tab_layout.addWidget(self.field_name_label)
         tab_layout.addWidget(self.field_crop_label)
         tab_layout.addWidget(self.field_category_label)
         tab_layout.addItem(self.spacer)
 
         # Runs on selected field
-        self.field_id_label.setFont(self.small_font)
-        self.field_id_label.setStyleSheet(f"color: {self.text_color};")
+        self.field_name_label.setFont(self.small_font)
+        self.field_name_label.setStyleSheet(f"color: {self.text_color};")
         self.field_category_label.setFont(self.small_font)
         self.field_category_label.setStyleSheet(f"color: {self.text_color};")
         self.field_crop_label.setFont(self.small_font)
@@ -259,9 +285,13 @@ class MainWindow(QMainWindow):
 
     def define_runs_dropdown(self, label, tab_layout):
         dropdown = self.run_dropdown
+        self.run_dropdown.currentIndexChanged.connect(self.send_run_detections_from_run_tab)
         label.setFont(self.small_font)
+        delete_run_button = QPushButton("Delete run", self)
+        delete_run_button.clicked.connect(self.delete_selected_run)
         tab_layout.addWidget(label)
         tab_layout.addWidget(dropdown)
+        tab_layout.addWidget(delete_run_button)
         tab_layout.addItem(self.spacer)
 
         # Video generation section
@@ -307,23 +337,23 @@ class MainWindow(QMainWindow):
         start_gps_label = QLabel("Start GPS:\t")
         start_gps_label.setStyleSheet(f"color: {self.text_color};")
         start_gps_label.setFont(self.small_font)
-        self.start_gps_input_NS.setPlaceholderText("Enter N/S coordinate")
-        self.start_gps_input_EW.setPlaceholderText("Enter E/W coordinate")
+        self.start_gps_input_lat.setPlaceholderText("Enter Latitude")
+        self.start_gps_input_lon.setPlaceholderText("Enter Longitude")
 
         gps_input_layout_end = QHBoxLayout()
         end_gps_label = QLabel("End GPS:\t")
         end_gps_label.setStyleSheet(f"color: {self.text_color};")
         end_gps_label.setFont(self.small_font)
-        self.end_gps_input_NS.setPlaceholderText("Enter N/S coordinate")
-        self.end_gps_input_EW.setPlaceholderText("Enter E/W coordinate")
+        self.end_gps_input_lat.setPlaceholderText("Enter Latitude")
+        self.end_gps_input_lon.setPlaceholderText("Enter Longitude")
 
         gps_input_layout_start.addWidget(start_gps_label)
-        gps_input_layout_start.addWidget(self.start_gps_input_NS)
-        gps_input_layout_start.addWidget(self.start_gps_input_EW)
+        gps_input_layout_start.addWidget(self.start_gps_input_lat)
+        gps_input_layout_start.addWidget(self.start_gps_input_lon)
 
         gps_input_layout_end.addWidget(end_gps_label)
-        gps_input_layout_end.addWidget(self.end_gps_input_NS)
-        gps_input_layout_end.addWidget(self.end_gps_input_EW)
+        gps_input_layout_end.addWidget(self.end_gps_input_lat)
+        gps_input_layout_end.addWidget(self.end_gps_input_lon)
 
         tab_layout.addLayout(gps_input_layout_start)
         tab_layout.addLayout(gps_input_layout_end)
@@ -338,14 +368,64 @@ class MainWindow(QMainWindow):
         return tab_layout
 
     def generate_run(self):
+        # Get inputs
         selected_video = self.available_videos.currentText()
         selected_field = self.generate_field_combobox.currentText()
-        if selected_video and selected_field and self.start_gps_input_EW.text() and self.start_gps_input_NS.text() and self.end_gps_input_NS.text() and self.end_gps_input_EW.text():
-            start_gps = (self.start_gps_input_NS.text(), self.start_gps_input_EW.text())
-            end_gps = (self.end_gps_input_NS.text(), self.end_gps_input_EW.text())
+
+        # Get GPS values with clear names
+        ns_start = self.start_gps_input_lat.text().strip()
+        ew_start = self.start_gps_input_lon.text().strip()
+        ns_end = self.end_gps_input_lat.text().strip()
+        ew_end = self.end_gps_input_lon.text().strip()
+
+        if not self.validate_coordinates(ns_start, ew_start, ns_end, ew_end):
+            print("Invalid GPS coordinates")
+            return
+
+        try:
+            # Convert to floats after validation
+            start_gps = (float(ns_start), float(ew_start))
+            end_gps = (float(ns_end), float(ew_end))
             self.state_manager.make_run(selected_video, selected_field, start_gps, end_gps)
-        else:
-            print("No video or invalid GPS")
+        except ValueError:
+            print("GPS coordinates must be numbers")
+
+    def validate_coordinates(self, ns1, ew1, ns2, ew2):
+        """Validate GPS coordinates are within Earth's ranges"""
+
+        def is_valid(ns, ew):
+            try:
+                lat = float(ns)
+                lon = float(ew)
+                return -90 <= lat <= 90 and -180 <= lon <= 180
+            except ValueError:
+                return False
+
+        return all([
+            ns1 and ew1 and ns2 and ew2,  # Check non-empty
+            is_valid(ns1, ew1),  # Check start coordinates
+            is_valid(ns2, ew2)  # Check end coordinates
+        ])
+
+    def delete_selected_run(self):
+        selected_run = self.run_dropdown.currentText()
+
+        confirm_deletion = QMessageBox(self)
+        confirm_deletion.setIcon(QMessageBox.Icon.Question)
+        confirm_deletion.setWindowTitle("Confirm Deletion")
+        confirm_deletion.setText(f"Are you sure you want to delete run {selected_run}?")
+
+        delete_button = confirm_deletion.addButton("Delete Run", QMessageBox.ButtonRole.DestructiveRole)
+        cancel_button = confirm_deletion.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        confirm_deletion.setDefaultButton(cancel_button)
+
+        confirm_deletion.exec()
+
+        if confirm_deletion.clickedButton() == delete_button:
+            self.db.delete_run_by_run_id(selected_run)
+            print(f"Deleted run {selected_run}")
+            self.populate_dropdowns()
+
 
     def define_crops_dropdown(self, label, tab_layout):
         # todo

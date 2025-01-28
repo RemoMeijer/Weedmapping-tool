@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from datetime import datetime
 import os
@@ -7,6 +8,7 @@ class DatabaseHandler:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         database_name = os.path.join(script_dir, 'detections.db')
         self.conn = sqlite3.connect(database_name)
+        self.conn.execute("PRAGMA foreign_keys = ON;")
         self.cursor = self.conn.cursor()
         self._initialize_db()
 
@@ -38,7 +40,6 @@ class DatabaseHandler:
                 FOREIGN KEY (field_id) REFERENCES Fields(id) ON DELETE CASCADE,
                 FOREIGN KEY (crop_id) REFERENCES Crops(id)
 );
-
         ''')
 
         # Create Detections table
@@ -90,21 +91,29 @@ class DatabaseHandler:
 
     def add_run(self, run_id, field_name, crop_name):
         """Add a new run, associating it with a field and a crop."""
-        # Ensure the crop exists
+        # Ensure field exists and get its ID
+        self.ensure_field_exists(field_name)
+        self.cursor.execute('SELECT id FROM Fields WHERE name = ?', (field_name,))
+        field = self.cursor.fetchone()
+        if not field:
+            print(f"Field '{field_name}' does not exist.")
+            return
+        field_id = field[0]
+
+        # Ensure crop exists and get its ID
         self.cursor.execute('SELECT id FROM Crops WHERE name = ?', (crop_name,))
         crop = self.cursor.fetchone()
         if not crop:
             print(f"Crop '{crop_name}' does not exist.")
             return
-
         crop_id = crop[0]
 
         try:
-            # Directly use field_name as the field_id
+            # Use the actual INTEGER IDs for both field and crop
             self.cursor.execute('''
                 INSERT INTO Runs (run_id, field_id, crop_id)
                 VALUES (?, ?, ?)
-            ''', (run_id, field_name, crop_id))
+            ''', (run_id, field_id, crop_id))
             self.conn.commit()
         except sqlite3.IntegrityError:
             print(f"Run ID '{run_id}' already exists.")
@@ -143,6 +152,41 @@ class DatabaseHandler:
         ''', (field_id,))
         return self.cursor.fetchall()
 
+    def get_field_by_run_id(self, run_id):
+        """Get the field name where the given run_id took place."""
+        self.cursor.execute('''
+                SELECT r.field_id
+                FROM Runs r
+                WHERE r.run_id = ?
+            ''', (run_id,))
+        result = self.cursor.fetchone()
+        if result:
+            return result[0]  # Return the field name
+        else:
+            print(f"No field found for run_id '{run_id}'.")
+            return None
+
+    def get_field_id_by_field_name(self, field_name):
+        """
+        Get the field ID from a field name
+        """
+        self.cursor.execute('''
+            SELECT id FROM Fields 
+            WHERE name = ?;
+        ''', (field_name,))
+
+        result = self.cursor.fetchone()
+        return result[0] if result else None
+
+    def get_field_name_by_field_id(self, field_id):
+        """Get field name from its ID"""
+        self.cursor.execute('''
+            SELECT name FROM Fields 
+            WHERE id = ?;
+        ''', (field_id,))
+        result = self.cursor.fetchone()
+        return result[0] if result else None
+
     def get_runs_in_timeframe(self, start_date, end_date):
         """Get all runs within a given timeframe."""
         self.cursor.execute('''
@@ -179,10 +223,50 @@ class DatabaseHandler:
         ''', (run_id,))
         return self.cursor.fetchall()
 
+    def delete_run_by_run_id(self, run_id):
+        """Delete all detections for a specific run ID."""
+        self.cursor.execute('''
+        DELETE FROM Detections WHERE run_id = ?
+        ''', (run_id,))
+        self.cursor.execute('''
+        DELETE FROM Runs WHERE run_id = ?
+        ''', (run_id,))
+        self.conn.commit()
+
     def delete_all_runs_and_detections(self):
         # Never touch this one lol
         """Delete all rows from Runs and Detections tables."""
         self.cursor.execute('DELETE FROM Detections')
         self.cursor.execute('DELETE FROM Runs')
+        self.cursor.execute('DELETE FROM Fields')
+
         self.conn.commit()
 
+    def import_geojson_data(self, geojson_path):
+        """
+        Import fields and crops from a GeoJSON file
+        Skips geometry data as requested
+        """
+        with open(geojson_path, 'r') as f:
+            geojson_data = json.load(f)
+
+        seen_fields = set()
+        seen_crops = set()
+
+        for feature in geojson_data['features']:
+            props = feature.get('properties', {})
+
+            # Add field (using ID from properties)
+            field_id = props.get('id')
+            if field_id and field_id not in seen_fields:
+                field_name = f"Field_{field_id}"
+                self.add_field(field_name)
+                seen_fields.add(field_id)
+
+            # Add crop (using 'gewas' from properties)
+            crop_name = props.get('gewas')
+            if crop_name and crop_name not in seen_crops:
+                self.add_crop(crop_name.strip())  # Clean up whitespace
+                seen_crops.add(crop_name)
+
+        print(f"Imported {len(seen_fields)} fields and {len(seen_crops)} crops")
