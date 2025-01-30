@@ -1,7 +1,7 @@
 import json
 import os
 
-from PyQt6.QtCore import Qt, QUrl, QObject, pyqtSlot, pyqtSignal
+from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QFont
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -10,76 +10,7 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QComboBox
     QVBoxLayout, QTabWidget, QSpacerItem, QSizePolicy, QPushButton, QLineEdit, QHBoxLayout, QMessageBox
 
 from Database.database_handler import DatabaseHandler
-
-class Backend(QObject):
-    # Signal to send data from Python to JavaScript
-    send_data_to_js = pyqtSignal(str)
-
-    def __init__(self, main_window):
-        super().__init__()
-        self.main_window = main_window # Main window reference to set fields with incoming data
-
-    @pyqtSlot(str)
-    def receive_data_from_js(self, data):
-        # Parse data
-        parsed_data = json.loads(data)
-        print(parsed_data)
-        # Check the identifier to handle different types of data
-        identifier = parsed_data.get("identifier")
-
-        if identifier == "field":
-            field_properties = parsed_data.get("properties", {})
-            # print(f"Field data received: {field_properties}")
-
-            # Perform necessary actions with the field properties
-            self.update_ui(field_properties)
-
-        else:
-            print(f"Unknown identifier: {identifier}")
-
-
-    def update_ui(self, parsed_data):
-        # Data we want to keep
-        key_to_widget = {
-            "id": self.main_window.field_name_label,
-            "gewas": self.main_window.field_crop_label,
-            "category": self.main_window.field_category_label,
-        }
-
-        # Add data to UI
-        for key, value in parsed_data.items():
-            widget = key_to_widget.get(key)
-            if widget:
-                # Update QLabel
-                if isinstance(widget, QLabel):
-                    widget.setText(f"{key.capitalize()}: {value}")
-
-                # Update QComboBox
-                elif isinstance(widget, QComboBox):
-                    if value not in [widget.itemText(i) for i in range(widget.count())]:
-                        widget.addItem(value)
-                    widget.setCurrentText(value)
-        self.update_field_runs_dropdown(parsed_data)
-
-
-    def update_field_runs_dropdown(self, data):
-        field_name = "Field_" + str(data["id"])
-        if not field_name:
-            print("No field name in JS data")
-            return
-
-        field_id = self.main_window.db.get_field_id_by_field_name(field_name)
-        if not field_id:
-            print(f"No field id found in DB with name {field_name}")
-            return
-
-        field_runs = self.main_window.db.get_runs_by_field_id(field_id)
-        self.main_window.field_runs_dropdown.clear()
-        if field_runs:
-            run_ids = [str(run[0]) for run in field_runs]
-            self.main_window.field_runs_dropdown.addItems(run_ids)
-        else:
-            self.main_window.field_runs_dropdown.addItem("No runs available")
+from LiveProcessing.UI.backend import Backend
 
 
 class MainWindow(QMainWindow):
@@ -102,9 +33,9 @@ class MainWindow(QMainWindow):
         self.run_dropdown = QComboBox()
         self.generate_field_combobox = QComboBox()
 
-        self.field_name_label = QLabel("Field Name: Not selected")
-        self.field_crop_label = QLabel("Field crop: Not selected")
-        self.field_category_label = QLabel("Field category: Not selected")
+        self.field_name_label = QLabel("Not selected")
+        self.field_crop_label = QLabel("Not selected")
+        self.field_category_label = QLabel("Not selected")
         self.field_runs_label = QLabel("Field runs:")
 
         self.map_frame = QFrame()
@@ -149,7 +80,7 @@ class MainWindow(QMainWindow):
         tabs.setStyleSheet(f"background-color: {self.background_light}; color: {self.text_color};")
 
         # Add data from db to the dropdowns
-        self.populate_dropdowns()
+        self.update_dropdowns()
 
         # Create tabs
         fields_tab = self.create_tab("Fields")
@@ -256,32 +187,58 @@ class MainWindow(QMainWindow):
 
         tab_layout.addItem(self.spacer)
 
-        # Info from clicked field
-        info_label = QLabel()
-        info_label.setText("Info:")
-        info_label.setFont(self.big_font)
-        info_label.setStyleSheet(f"color: {self.text_color};")
+        info_layout = self.define_info_section()
 
-        tab_layout.addWidget(info_label)
-        tab_layout.addWidget(self.field_name_label)
-        tab_layout.addWidget(self.field_crop_label)
-        tab_layout.addWidget(self.field_category_label)
-        tab_layout.addItem(self.spacer)
-
-        # Runs on selected field
-        self.field_name_label.setFont(self.small_font)
-        self.field_name_label.setStyleSheet(f"color: {self.text_color};")
-        self.field_category_label.setFont(self.small_font)
-        self.field_category_label.setStyleSheet(f"color: {self.text_color};")
-        self.field_crop_label.setFont(self.small_font)
-        self.field_crop_label.setStyleSheet(f"color: {self.text_color};")
-        self.field_runs_label.setFont(self.big_font)
-        self.field_runs_label.setStyleSheet(f"color: {self.text_color};")
+        tab_layout.addLayout(info_layout)
 
         tab_layout.addWidget(self.field_runs_label)
         tab_layout.addWidget(self.field_runs_dropdown)
 
         return tab_layout
+
+    def define_info_section(self):
+        info_layout = QVBoxLayout()
+
+        # Info header
+        info_label = QLabel("Info:")
+        info_label.setFont(self.big_font)
+        info_label.setStyleSheet(f"color: {self.text_color};")
+        info_layout.addWidget(info_label)
+
+        # Define field layouts dynamically
+        info_layout.addLayout(self._create_info_row("Field Name:", self.field_name_label))
+        info_layout.addLayout(self._create_info_row("Crop Name:", self.field_crop_label))
+        info_layout.addLayout(self._create_info_row("Field Category:", self.field_category_label))
+
+        info_layout.addItem(self.spacer)
+
+        # Apply consistent styling
+        self._apply_info_label_styles()
+
+        return info_layout
+
+    def _create_info_row(self, label_text, value_label):
+        """Helper method to create an HBox layout with a fixed label and a value label."""
+        layout = QHBoxLayout()
+
+        label = QLabel(label_text)
+        label.setFont(self.small_font)
+        label.setStyleSheet(f"color: {self.text_color};")
+
+        layout.addWidget(label, 1)  # 20% width
+        layout.addWidget(value_label, 4)  # 80% width
+
+        return layout
+
+    def _apply_info_label_styles(self):
+        """Applies consistent styles to field labels."""
+        for label in [self.field_name_label, self.field_category_label, self.field_crop_label]:
+            label.setFont(self.small_font)
+            label.setStyleSheet(f"color: {self.text_color};")
+
+        self.field_runs_label.setFont(self.big_font)
+        self.field_runs_label.setStyleSheet(f"color: {self.text_color};")
+
 
     def define_runs_dropdown(self, label, tab_layout):
         dropdown = self.run_dropdown
@@ -333,27 +290,8 @@ class MainWindow(QMainWindow):
         tab_layout.addLayout(field_row_layout)
 
         # Start and End GPS input fields in one row
-        gps_input_layout_start = QHBoxLayout()
-        start_gps_label = QLabel("Start GPS:\t")
-        start_gps_label.setStyleSheet(f"color: {self.text_color};")
-        start_gps_label.setFont(self.small_font)
-        self.start_gps_input_lat.setPlaceholderText("Enter Latitude")
-        self.start_gps_input_lon.setPlaceholderText("Enter Longitude")
-
-        gps_input_layout_end = QHBoxLayout()
-        end_gps_label = QLabel("End GPS:\t")
-        end_gps_label.setStyleSheet(f"color: {self.text_color};")
-        end_gps_label.setFont(self.small_font)
-        self.end_gps_input_lat.setPlaceholderText("Enter Latitude")
-        self.end_gps_input_lon.setPlaceholderText("Enter Longitude")
-
-        gps_input_layout_start.addWidget(start_gps_label)
-        gps_input_layout_start.addWidget(self.start_gps_input_lat)
-        gps_input_layout_start.addWidget(self.start_gps_input_lon)
-
-        gps_input_layout_end.addWidget(end_gps_label)
-        gps_input_layout_end.addWidget(self.end_gps_input_lat)
-        gps_input_layout_end.addWidget(self.end_gps_input_lon)
+        gps_input_layout_start = self.create_gps_input_row("Start GPS:\t", self.start_gps_input_lat, self.start_gps_input_lon)
+        gps_input_layout_end = self.create_gps_input_row("End GPS:\t", self.end_gps_input_lat, self.end_gps_input_lon)
 
         tab_layout.addLayout(gps_input_layout_start)
         tab_layout.addLayout(gps_input_layout_end)
@@ -366,6 +304,18 @@ class MainWindow(QMainWindow):
         tab_layout.addWidget(generate_run_button)
 
         return tab_layout
+
+    def create_gps_input_row(self, label_text, lat_input, lon_input):
+        gps_input_row = QHBoxLayout()
+        label = QLabel(label_text)
+        label.setStyleSheet(f"color: {self.text_color};")
+        label.setFont(self.small_font)
+        lat_input.setPlaceholderText("Enter Latitude")
+        lon_input.setPlaceholderText("Enter Longitude")
+        gps_input_row.addWidget(label)
+        gps_input_row.addWidget(lat_input)
+        gps_input_row.addWidget(lon_input)
+        return gps_input_row
 
     def generate_run(self):
         # Get inputs
@@ -390,7 +340,7 @@ class MainWindow(QMainWindow):
         except ValueError:
             print("GPS coordinates must be numbers")
 
-    def validate_coordinates(self, ns1, ew1, ns2, ew2):
+    def validate_coordinates(self, lat1, lon1, lat2, lon2):
         """Validate GPS coordinates are within Earth's ranges"""
 
         def is_valid(ns, ew):
@@ -402,9 +352,9 @@ class MainWindow(QMainWindow):
                 return False
 
         return all([
-            ns1 and ew1 and ns2 and ew2,  # Check non-empty
-            is_valid(ns1, ew1),  # Check start coordinates
-            is_valid(ns2, ew2)  # Check end coordinates
+            lat1 and lon1 and lat2 and lon2,  # Check non-empty
+            is_valid(lat1, lon1),  # Check start coordinates
+            is_valid(lat2, lon2)  # Check end coordinates
         ])
 
     def delete_selected_run(self):
@@ -424,7 +374,7 @@ class MainWindow(QMainWindow):
         if confirm_deletion.clickedButton() == delete_button:
             self.db.delete_run_by_run_id(selected_run)
             print(f"Deleted run {selected_run}")
-            self.populate_dropdowns()
+            self.update_dropdowns()
 
 
     def define_crops_dropdown(self, label, tab_layout):
@@ -435,17 +385,35 @@ class MainWindow(QMainWindow):
 
         return tab_layout
 
-    def populate_dropdowns(self):
-        # Fetch data from database
-        fields = self.db.get_all_fields()
-        crops = self.db.get_all_crops()
-        runs = self.db.get_all_runs()
+    def update_dropdowns(self):
+        # Block signals during update
+        self.run_dropdown.blockSignals(True)
+        self.field_dropdown.blockSignals(True)
+        self.field_runs_dropdown.blockSignals(True)
 
-        # Populate the dropdowns
-        self.field_dropdown.addItems(fields)
-        self.crop_dropdown.addItems(crops)
-        self.run_dropdown.addItems(runs)
-        self.field_runs_dropdown.addItem("None")
+        try:
+            # Clear and repopulate
+            self.run_dropdown.clear()
+            self.field_dropdown.clear()
+            self.field_runs_dropdown.clear()
+
+            # Add fresh items
+            self.run_dropdown.addItems(self.db.get_all_runs())
+            self.field_dropdown.addItems(self.db.get_all_fields())
+            field_id = self.db.get_field_id_by_field_name(f"Field_{self.field_name_label.text()}")
+            print(field_id)
+            runs_in_field = self.db.get_runs_by_field_id(field_id)
+            if runs_in_field:
+                self.field_runs_dropdown.addItems(runs_in_field)
+            else:
+                self.field_runs_dropdown.addItem("No runs in this field")
+
+        finally:
+            # Always restore signal handling
+            self.run_dropdown.blockSignals(False)
+            self.field_dropdown.blockSignals(False)
+            self.field_runs_dropdown.blockSignals(False)
+
 
     def map_container(self):
         # Make container to run html map in
