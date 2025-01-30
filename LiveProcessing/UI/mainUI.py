@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QComboBox
 
 from Database.database_handler import DatabaseHandler
 from LiveProcessing.UI.backend import Backend
+from LiveProcessing.UI.mapHandler import MapHandler
 
 
 class MainWindow(QMainWindow):
@@ -43,7 +44,6 @@ class MainWindow(QMainWindow):
 
         # Set up QWebChannel
         self.web_channel = QWebChannel()
-        self.backend = Backend(self)
 
         self.spacer = QSpacerItem(20, 70, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
 
@@ -55,6 +55,8 @@ class MainWindow(QMainWindow):
         self.end_gps_input_lon = QLineEdit()
 
         self.db = DatabaseHandler()
+        self.backend = Backend(self, self.db)
+        self.mapHandler = MapHandler(self.db, self.backend)
 
         self.main_ui()
         self.showMaximized()
@@ -122,53 +124,6 @@ class MainWindow(QMainWindow):
             self.define_crops_dropdown(label, tab_layout)
             return tab
 
-    def goto_field_on_map(self):
-        field = self.field_dropdown.currentText()
-        field_id = field.replace("Field_", "")
-        self.goto_field(field_id)
-
-    def goto_field_on_map_from_run_tab(self):
-        run_id = self.run_dropdown.currentText()
-        field = self.db.get_field_by_run_id(run_id)
-        if field is not None:
-            field_id = field.replace("Field_", "")
-            self.goto_field(field_id)
-
-
-    def goto_field(self, field_id):
-        data = {
-            "identifier": "field",  # Add an identifier
-            "field_id": field_id  # Include the field ID
-        }
-
-        json_data = json.dumps(data)
-
-        self.backend.send_data_to_js.emit(json_data)
-
-    def send_run_detections_from_fields_tab(self):
-        run_id = self.field_runs_dropdown.currentText()
-        self.send_detections(run_id)
-
-    def send_run_detections_from_run_tab(self):
-        run_id = self.run_dropdown.currentText()
-        self.goto_field_on_map_from_run_tab()
-        self.send_detections(run_id)
-
-    def send_detections(self, run_id):
-        # Check if run_id is valid or not default
-        if not run_id or run_id == "No runs available":
-            detections = []
-        else:
-            detections = self.db.get_detections_by_run_id(run_id=run_id)
-
-        # Even with empty detections, they need to be sent to clean the map of the old detections
-        data = {
-            "identifier": "run_detections",  # Add an identifier
-            "detections": detections  # Include the field ID
-        }
-
-        json_data = json.dumps(data)
-        self.backend.send_data_to_js.emit(json_data)
 
     def define_field_tab(self, tab_layout):
         dropdown = self.field_dropdown
@@ -384,35 +339,6 @@ class MainWindow(QMainWindow):
         tab_layout.addWidget(dropdown)
 
         return tab_layout
-
-    def update_dropdowns(self):
-        # Block signals during update
-        self.run_dropdown.blockSignals(True)
-        self.field_dropdown.blockSignals(True)
-        self.field_runs_dropdown.blockSignals(True)
-
-        try:
-            # Clear and repopulate
-            self.run_dropdown.clear()
-            self.field_dropdown.clear()
-            self.field_runs_dropdown.clear()
-
-            # Add fresh items
-            self.run_dropdown.addItems(self.db.get_all_runs())
-            self.field_dropdown.addItems(self.db.get_all_fields())
-            field_id = self.db.get_field_id_by_field_name(f"Field_{self.field_name_label.text()}")
-            print(field_id)
-            runs_in_field = self.db.get_runs_by_field_id(field_id)
-            if runs_in_field:
-                self.field_runs_dropdown.addItems(runs_in_field)
-            else:
-                self.field_runs_dropdown.addItem("No runs in this field")
-
-        finally:
-            # Always restore signal handling
-            self.run_dropdown.blockSignals(False)
-            self.field_dropdown.blockSignals(False)
-            self.field_runs_dropdown.blockSignals(False)
 
 
     def map_container(self):
