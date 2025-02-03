@@ -1,5 +1,5 @@
 import cv2
-from ultralytics import YOLO
+from ultralytics import RTDETR
 
 
 def predict(chosen_model, img, classes=[], conf=0.5):
@@ -53,7 +53,7 @@ def create_video_writer(video_cap, output_filename):
     return writer
 
 
-model = YOLO("rt-detr.pt")
+model = RTDETR("rt-detr.pt")
 
 output_filename = "example.mp4"
 

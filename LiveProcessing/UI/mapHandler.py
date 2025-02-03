@@ -1,19 +1,8 @@
 import json
 
 class MapHandler:
-    def __init__(self, data_base, backend):
-        self.db = data_base
+    def __init__(self, backend):
         self.backend = backend
-
-    def goto_field_on_map(self, field_name):
-        self.goto_field(field_name)
-
-    def goto_field_on_map_from_run_tab(self, run_id):
-        field = self.db.get_field_by_run_id(run_id)
-        if field is not None:
-            field_id = field.replace("Field_", "")
-            self.goto_field(field_id)
-
 
     def goto_field(self, field_id):
         data = {
