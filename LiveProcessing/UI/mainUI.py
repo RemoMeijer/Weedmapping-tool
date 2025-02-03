@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QComboBox
 from Database.database_handler import DatabaseHandler
 from LiveProcessing.UI.backend import Backend
 from LiveProcessing.UI.mapHandler import MapHandler
+from LiveProcessing.UI.uiUpdater import UiUpdater
 
 
 class MainWindow(QMainWindow):
@@ -56,7 +57,10 @@ class MainWindow(QMainWindow):
 
         self.db = DatabaseHandler()
         self.backend = Backend(self, self.db)
-        self.mapHandler = MapHandler(self.db, self.backend)
+        self.mapHandler = MapHandler(self.backend)
+        self.uiManager = UiUpdater(self, self.db, self.backend)
+
+        self.backend.field_data_recieved.connect(self.handle_field_update)
 
         self.main_ui()
         self.showMaximized()
@@ -82,7 +86,7 @@ class MainWindow(QMainWindow):
         tabs.setStyleSheet(f"background-color: {self.background_light}; color: {self.text_color};")
 
         # Add data from db to the dropdowns
-        self.update_dropdowns()
+        self.uiManager.update_dropdowns()
 
         # Create tabs
         fields_tab = self.create_tab("Fields")
@@ -127,9 +131,9 @@ class MainWindow(QMainWindow):
 
     def define_field_tab(self, tab_layout):
         dropdown = self.field_dropdown
-        dropdown.currentIndexChanged.connect(self.goto_field_on_map)
+        dropdown.currentIndexChanged.connect(self.mapHandler.goto_field)
 
-        self.field_runs_dropdown.currentIndexChanged.connect(self.send_run_detections_from_fields_tab)
+        self.field_runs_dropdown.currentIndexChanged.connect(self.backend.send_run_detections_from_fields_tab)
 
         # Existing fields from db
         own_fields_label = QLabel()
@@ -197,7 +201,7 @@ class MainWindow(QMainWindow):
 
     def define_runs_dropdown(self, label, tab_layout):
         dropdown = self.run_dropdown
-        self.run_dropdown.currentIndexChanged.connect(self.send_run_detections_from_run_tab)
+        self.run_dropdown.currentIndexChanged.connect(self.backend.send_run_detections_from_run_tab)
         label.setFont(self.small_font)
         delete_run_button = QPushButton("Delete run", self)
         delete_run_button.clicked.connect(self.delete_selected_run)
@@ -329,7 +333,7 @@ class MainWindow(QMainWindow):
         if confirm_deletion.clickedButton() == delete_button:
             self.db.delete_run_by_run_id(selected_run)
             print(f"Deleted run {selected_run}")
-            self.update_dropdowns()
+            self.uiManager.update_dropdowns()
 
 
     def define_crops_dropdown(self, label, tab_layout):
@@ -362,3 +366,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(web_view)
 
         return self.map_frame
+
+
+    def handle_field_update(self, field_data):
+        self.uiManager.update_ui(field_data)
