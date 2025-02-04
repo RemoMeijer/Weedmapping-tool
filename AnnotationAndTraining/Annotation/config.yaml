@@ -21,3 +21,4 @@ classes:
 
 display:
   scale_percent: 70
+  window_name: Display image

@@ -9,10 +9,11 @@ from LiveProcessing.FrameExtractor.getFramesFromVideo import VideoFrameExtractor
 class YoloAnnotator:
     def __init__(self, config_path):
         self.cfg = None
-        self.load_config(config_path)
+        self._load_config(config_path)
         self._init_paths()
+        cv2.namedWindow(self.window_name, cv2.WINDOW_FULLSCREEN)
 
-    def load_config(self, config_path):
+    def _load_config(self, config_path):
         """Load parameters from YAML file"""
         with open(config_path, 'r') as f:
             self.cfg = yaml.safe_load(f)
@@ -21,6 +22,8 @@ class YoloAnnotator:
         required_sections = ['paths', 'thresholds', 'classes']
         if not all(section in self.cfg for section in required_sections):
             raise ValueError(f"Config missing required sections: {required_sections}")
+
+        self.window_name = self.cfg['display']['window_name']
 
     def _init_paths(self):
         """Create all paths and dirs needed."""
@@ -58,18 +61,19 @@ class YoloAnnotator:
 
         # Resize for the display
         resized_img = self.scale_image(self.cfg['display']['scale_percent'], img_copy)
-        cv2.imshow(f"Display image", resized_img)
+        cv2.imshow(self.window_name, resized_img)
         cv2.waitKey(1)
 
         # Get user input
-        user_class = input("Enter class: 1-crop, 2-weed, 3-skip. ")
-        if user_class in self.cfg['classes']['mapping']:
-            return self.cfg['classes']['mapping'][user_class], True
+        while True:
+            user_class = input("Enter class: 1-crop, 2-weed, 3-skip. ")
+            if user_class in self.cfg['classes']['mapping']:
+                return self.cfg['classes']['mapping'][user_class], True
+            if user_class == '3':
+                return None, False
+            print("Invalid input. Valid options: 1, 2, 3")
 
-        # Return None if input is 3 or something else
-        return None, False
-
-    def _contour_to_yolo(self, contour, image_size):
+    def contour_to_yolo(self, contour, image_size):
         """Convert contour points to YOLO segmentation format"""
         h, w = image_size
         points = contour.squeeze()
@@ -79,8 +83,8 @@ class YoloAnnotator:
     # Main loop for annotation
     def annotate_images(self):
 
-        # Skip first image, or do it twice, because cv2 is weird with image showing
-        # todo find solution for this weird cv2 behaviour
+        # Skip first image, or do it twice, because cv2 is weird with the first image showing
+        # todo find solution for this cv2 behaviour
         first_image = True
 
         # Loop trough folder that needs to be labeled
@@ -88,11 +92,15 @@ class YoloAnnotator:
             print(img_name)
             img = cv2.imread(img_name)
 
+            if img is None:
+                print(f"Image {img_name} not found.")
+                continue
+
             # First image will show and go away in 1 frame.
             # I do not want to use waitKey(0) because i do not want a key input
             # To achieve this, two waitKey(1) need to be shown, because the first one will always be a black frame
             if first_image:
-                cv2.imshow(f"Display image", img)
+                cv2.imshow(self.window_name, img)
                 cv2.waitKey(1)
                 first_image = False
 
@@ -117,7 +125,7 @@ class YoloAnnotator:
                     print("Removed contour.")
                     continue
 
-                yolo_annotation = f"{self.cfg['classes']['ids'][class_name]} " + self._contour_to_yolo(cnt, img.shape[:2])
+                yolo_annotation = f"{self.cfg['classes']['ids'][class_name]} " + self.contour_to_yolo(cnt, img.shape[:2])
                 annotations.append(yolo_annotation)
 
             # Write the annotations per image in txt file
