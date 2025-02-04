@@ -212,17 +212,12 @@ class MainWindow(QMainWindow):
         tab_layout.addItem(self.spacer)
 
         # Video generation section
-        video_generate_text = QLabel()
-        video_generate_text.setText("Generate run from video file:")
-        video_generate_text.setStyleSheet(f"color: {self.text_color};")
-        video_generate_text.setFont(self.small_font)
+        video_generate_text = self.make_label("Generate run from video file:")
         tab_layout.addWidget(video_generate_text)
 
         # Video Label and ComboBox in one row
         video_row_layout = QHBoxLayout()
-        video_label = QLabel("Video:")
-        video_label.setStyleSheet(f"color: {self.text_color};")
-        video_label.setFont(self.small_font)
+        video_label = self.make_label("Video:")
 
         self.available_videos = QComboBox()
         if os.path.exists(self.video_folder) and os.path.isdir(self.video_folder):
@@ -238,9 +233,7 @@ class MainWindow(QMainWindow):
 
         # Field Label and ComboBox in one row
         field_row_layout = QHBoxLayout()
-        field_label = QLabel("Field:")
-        field_label.setStyleSheet(f"color: {self.text_color};")
-        field_label.setFont(self.small_font)
+        field_label = self.make_label("Field: ")
 
         self.generate_field_combobox.addItems(
             [self.field_dropdown.itemText(i) for i in range(self.field_dropdown.count())])
@@ -344,6 +337,12 @@ class MainWindow(QMainWindow):
         tab_layout.addWidget(dropdown)
 
         return tab_layout
+
+    def make_label(self, text):
+        label = QLabel(text)
+        label.setStyleSheet(f"color: {self.text_color};")
+        label.setFont(self.small_font)
+        return label
 
 
     def map_container(self):
