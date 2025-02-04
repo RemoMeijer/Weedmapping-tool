@@ -145,26 +145,27 @@ class DatabaseHandler:
     def get_runs_by_field_id(self, field_id):
         """Get all runs for a specific field ID."""
         self.cursor.execute('''
-            SELECT r.run_id, r.date_time, c.name AS crop_name
+            SELECT r.run_id
             FROM Runs r
-            JOIN Crops c ON r.crop_id = c.id
             WHERE r.field_id = ?
         ''', (field_id,))
-        return self.cursor.fetchall()
+        result = self.cursor.fetchall()
+
+        # cursor.fetchall returns a tuple, with only 1 element.
+        # Since we want a list instead of a tuple, return the first element as a list if a run exists
+        return [row[0] for row in result] if result else ["No runs found."]
 
     def get_field_by_run_id(self, run_id):
         """Get the field name where the given run_id took place."""
         self.cursor.execute('''
-                SELECT r.field_id
+                SELECT r.field_id 
                 FROM Runs r
                 WHERE r.run_id = ?
             ''', (run_id,))
         result = self.cursor.fetchone()
-        if result:
-            return result[0]  # Return the field name
-        else:
-            print(f"No field found for run_id '{run_id}'.")
-            return None
+
+        # Return first element of tuple containing the field_id, else none
+        return result[0] if result else None
 
     def get_field_id_by_field_name(self, field_name):
         """

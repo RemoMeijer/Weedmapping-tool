@@ -1,7 +1,7 @@
 import json
 
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import QLabel, QComboBox
+from Database.database_handler import DatabaseHandler
 
 
 class Backend(QObject):
@@ -9,24 +9,20 @@ class Backend(QObject):
     send_data_to_js = pyqtSignal(str)
     field_data_recieved = pyqtSignal(dict)
 
-    def __init__(self, main_window, db):
+    def __init__(self, main_window, db: 'DatabaseHandler'):
         super().__init__()
         self.main_window = main_window # Main window reference to set fields with incoming data
         self.db = db
 
     @pyqtSlot(str)
     def receive_data_from_js(self, data):
-        # Parse data
         parsed_data = json.loads(data)
-        print(parsed_data)
+
         # Check the identifier to handle different types of data
         identifier = parsed_data.get("identifier")
-
         if identifier == "field":
             field_properties = parsed_data.get("properties", {})
-            # print(f"Field data received: {field_properties}")
-
-            # Perform necessary actions with the field properties
+            # Emit signal that some field data is received
             self.field_data_recieved.emit(field_properties)
 
         else:

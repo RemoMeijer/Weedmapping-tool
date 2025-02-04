@@ -13,10 +13,11 @@ from Database.database_handler import DatabaseHandler
 from LiveProcessing.UI.backend import Backend
 from LiveProcessing.UI.mapHandler import MapHandler
 from LiveProcessing.UI.uiUpdater import UiUpdater
+from StateManager import StateManager
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, state_manager, video_folder):
+    def __init__(self, state_manager: 'StateManager', video_folder):
         super().__init__()
 
         self.state_manager = state_manager
@@ -86,7 +87,7 @@ class MainWindow(QMainWindow):
         tabs.setStyleSheet(f"background-color: {self.background_light}; color: {self.text_color};")
 
         # Add data from db to the dropdowns
-        self.uiManager.update_dropdowns()
+        self.uiManager.update_field_section_dropdowns()
 
         # Create tabs
         fields_tab = self.create_tab("Fields")
@@ -333,7 +334,7 @@ class MainWindow(QMainWindow):
         if confirm_deletion.clickedButton() == delete_button:
             self.db.delete_run_by_run_id(selected_run)
             print(f"Deleted run {selected_run}")
-            self.uiManager.update_dropdowns()
+            self.uiManager.update_field_section_dropdowns()
 
 
     def define_crops_dropdown(self, label, tab_layout):
