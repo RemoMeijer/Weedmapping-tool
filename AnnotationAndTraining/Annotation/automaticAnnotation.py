@@ -1,191 +1,163 @@
 import cv2
-import os
 import numpy as np
-import matplotlib.pyplot as plt
+import yaml
+
+from pathlib import Path
 from LiveProcessing.FrameExtractor.getFramesFromVideo import VideoFrameExtractor
 
-lower_green = (29, 40, 20) # finetune these values every attempt
-upper_green = (120, 255, 150)
 
-def extract_green_plants_refined(img_path):
-    # Loading image
-    img = cv2.imread(img_path)
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+class YoloAnnotator:
+    def __init__(self, config_path):
+        self.cfg = None
+        self.load_config(config_path)
+        self._init_paths()
 
-    # Split the color channels
-    r, g, b = img_rgb[:, :, 0], img_rgb[:, :, 1], img_rgb[:, :, 2]
+    def load_config(self, config_path):
+        """Load parameters from YAML file"""
+        with open(config_path, 'r') as f:
+            self.cfg = yaml.safe_load(f)
 
-    # Define a mask where green is the main colour, e.g. significantly more present than red and blue
-    green_mask = (g > r + 15) & (g > b + 15) & (g > 20) & (g < 255) & (r < 220) & (b < 100)
+        # Check if everything is there
+        required_sections = ['paths', 'thresholds', 'classes']
+        if not all(section in self.cfg for section in required_sections):
+            raise ValueError(f"Config missing required sections: {required_sections}")
 
-    # Convert boolean mask to binary image
-    green_mask = green_mask.astype(np.uint8) * 255
+    def _init_paths(self):
+        """Create all paths and dirs needed."""
+        self.images_dir = Path(self.cfg['paths']['images_dir'])
+        self.annotations_output_dir = Path(self.cfg['paths']['annotations_dir'])
+        self.annotations_output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create an output image that shows only the green plants for show
-    green_plants = cv2.bitwise_and(img_rgb, img_rgb, mask=green_mask)
+    def extract_green_plants_mask(self, img):
+        """Generate mask for green areas using configured thresholds"""
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        red, green, blue = img_rgb[:, :, 0], img_rgb[:, :, 1], img_rgb[:, :, 2]
 
-    # Visualization of plants
-    fig, axs = plt.subplots(1, 3, figsize=(20, 10))
+        # Create refined mask for defined green areas
+        thresholds = self.cfg['thresholds']
+        mask = (
+                       (green > red + thresholds['red_boundary']) &
+                       (green > blue) &
+                       (green > thresholds['green_min']) &
+                       (green < thresholds['green_max']) &
+                       (red < thresholds['red_max']) &
+                       (blue < thresholds['blue_max'])
+               ).astype(np.uint8) * 255
 
-    axs[0].imshow(img_rgb)
-    axs[0].set_title('Original Image', fontsize=20)
-    axs[0].axis('off')
+        # Remove some graining with Erode and Dilate etc.
+        kernel = np.ones((5, 5), np.uint8)
+        green_mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, kernel,
+                                      iterations=1)  # Can finetune this, maybe this or one more
 
-    axs[1].imshow(green_mask, cmap='gray')
-    axs[1].set_title('Refined Green Mask', fontsize=20)
-    axs[1].axis('off')
+        return green_mask
 
-    axs[2].imshow(green_plants)
-    axs[2].set_title('Refined Extracted Green Plants', fontsize=20)
-    axs[2].axis('off')
+    def process_contour(self, cnt, img):
+        "Process the contour and return the class, and if we want to keep this contour"
+        img_copy = img.copy()
+        cv2.drawContours(img_copy, [cnt], -1, (0, 0, 255), thickness=2)  # BGR colour!!
 
-    plt.tight_layout()
-    plt.show()
+        # Resize for the display
+        resized_img = self.scale_image(self.cfg['display']['scale_percent'], img_copy)
+        cv2.imshow(f"Display image", resized_img)
+        cv2.waitKey(1)
 
-# Old method was converting to HSV, but worked only in specific circumstances
-def convertHSV(img):
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, lower_green, upper_green)
+        # Get user input
+        user_class = input("Enter class: 1-crop, 2-weed, 3-skip. ")
+        if user_class in self.cfg['classes']['mapping']:
+            return self.cfg['classes']['mapping'][user_class], True
 
-    # Remove some graining with Erode and Dilate etc.
-    kernel = cv2.getStructuringElement(cv2.MORPH_OPEN, (5, 5)) # Can adjust kernel size when needed
-    inner_processed_mask = cv2.morphologyEx(mask, cv2.MORPH_ERODE, kernel)
-    inner_processed_mask = cv2.morphologyEx(inner_processed_mask, cv2.MORPH_OPEN, kernel)
-    inner_processed_mask = cv2.morphologyEx(inner_processed_mask, cv2.MORPH_DILATE, kernel)
+        # Return None if input is 3 or something else
+        return None, False
 
-    return inner_processed_mask, hsv
+    def _contour_to_yolo(self, contour, image_size):
+        """Convert contour points to YOLO segmentation format"""
+        h, w = image_size
+        points = contour.squeeze()
+        normalized = [f"{x / w:.6f} {y / h:.6f}" for x, y in points]
+        return " ".join(normalized)
 
+    # Main loop for annotation
+    def annotate_images(self):
 
-def extract_green_plants_mask(img):
-    # Convert to RGB
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    r, g, b = img_rgb[:, :, 0], img_rgb[:, :, 1], img_rgb[:, :, 2]
+        # Skip first image, or do it twice, because cv2 is weird with image showing
+        # todo find solution for this weird cv2 behaviour
+        first_image = True
 
-    # Create refined mask for green areas
-    green_mask = (g> r + 14) & (g > b) & (g > 50) & (g < 250) & (r < 200) & (b < 100)
-    green_mask = green_mask.astype(np.uint8) * 255
+        # Loop trough folder that needs to be labeled
+        for img_name in self.images_dir.glob('*.jpg'):
+            print(img_name)
+            img = cv2.imread(img_name)
 
-    # Remove some graining with Erode and Dilate etc.
-    kernel = np.ones((5, 5), np.uint8)
-    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_DILATE, kernel)
-    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_DILATE, kernel) # Can finetune this, maybe one less or more
-
-    return green_mask
-
-
-# Main loop for annotation
-def loop_dir_and_annotate(images_dir):
-    img_path = images_dir
-    os.makedirs('annotations', exist_ok=True)
-
-    # Class id's.
-    # todo Maybe load from file?
-    class_ids = {
-        "crop": 0,
-        "weed": 1,
-    }
-
-    # Skip first image, or do it twice, because cv2 is weird with image showing
-    first_image = True
-
-    # Loop trough folder that needs to be labeled
-    for img_name in os.listdir(img_path):
-        annotations = []
-        print(img_name)
-        img = cv2.imread(f'{img_path}/{img_name}')
-
-        # First image will show and go away in 1 frame. I do not want to use waitKey(0) because i do not want a key input
-        # To achieve this, two waitKey(1) need to be shown, because the first one will always be a black frame
-        if first_image:
-            cv2.imshow(f"Display image", img)
-            cv2.waitKey(1)
-            first_image = False
-
-        # Get the green plants from image
-        processed_mask = extract_green_plants_mask(img)
-        cv2.imshow(f"Green extracted", processed_mask)
-        height, width, _ = img.shape
-
-        # Find contours
-        contours, _ = cv2.findContours(processed_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        contours = list(contours)
-
-        # Area threshold
-        min_area = 600
-
-        contour_count = 0
-
-        # Loop trough found contours in image
-        for cnt in contours:
-            # If contour above threshold
-            if cv2.contourArea(cnt) > min_area:
-                img_copy = img.copy()
-                cv2.drawContours(img_copy, [cnt], -1, (0, 0, 255), thickness=2) # BGR colour
-
-                # Create a resized version for display issues
-                scale_percent = 70  # Scale down to 50% of the original size
-                display_width = int(img_copy.shape[1] * scale_percent / 100)
-                display_height = int(img_copy.shape[0] * scale_percent / 100)
-                dim = (display_width, display_height)
-
-                resized_img = cv2.resize(img_copy, dim, interpolation=cv2.INTER_AREA)
-
-                cv2.imshow(f"Display image", resized_img)
+            # First image will show and go away in 1 frame.
+            # I do not want to use waitKey(0) because i do not want a key input
+            # To achieve this, two waitKey(1) need to be shown, because the first one will always be a black frame
+            if first_image:
+                cv2.imshow(f"Display image", img)
                 cv2.waitKey(1)
+                first_image = False
 
-                class_mapping = {"2": "weed", "1": "crop"} # todo Get this from the earlier defined class id's. Bad coding!
+            # Get the green plants from image
+            processed_mask = self.extract_green_plants_mask(img)
 
-                # User decision if weed or crop by user input
-                user_class = class_mapping.get(input("Enter class for this contour (crop 1 / weed 2 / other 3): ").strip()) # todo Also can be automated
+            # Find contours
+            contours, _ = cv2.findContours(processed_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            contours = list(contours)
 
-                # Remove if other
-                if user_class is None:
-                    print("Removed contour.")
-                    contours.pop(contour_count)
+            annotations = []
+            # Loop trough found contours in image
+            for cnt in contours:
+                # If contour under threshold, skip
+                if cv2.contourArea(cnt) < self.cfg['thresholds']['min_area']:
                     continue
 
-                contour_count += 1
+                class_name, keep = self.process_contour(cnt, img)
 
-                # Get class ID
-                class_id = class_ids[user_class]
+                # Skip if we don't want to keep it
+                if not keep:
+                    print("Removed contour.")
+                    continue
 
-                # Extract and get the centre of the points
-                contour_points = cnt.squeeze()
-                normalized_points = []
-                for point in contour_points:
-                    x, y = point
-                    normalized_x = x / width
-                    normalized_y = y / height
-                    normalized_points.append(f"{normalized_x:.6f} {normalized_y:.6f}")
+                yolo_annotation = f"{self.cfg['classes']['ids'][class_name]} " + self._contour_to_yolo(cnt, img.shape[:2])
+                annotations.append(yolo_annotation)
 
-                # Prepare the line in YOLO segmentation format
-                annotation_line = f"{class_id} " + " ".join(normalized_points)
-                annotations.append(annotation_line)
+            # Write the annotations per image in txt file
+            output_path = self.annotations_output_dir / f"{img_name.stem}.txt"
+            with open(output_path, "w") as f:
+                f.write("\n".join(annotations))
 
-        # Write the annotations per image in txt file
-        with open(f"annotations/{os.path.splitext(img_name)[0]}.txt", "w") as f:
-            for annotation in annotations:
-                f.write(annotation + "\n")
+        # When done, destroy windows
+        cv2.destroyAllWindows()
 
-    # When done, destroy windows
-    cv2.destroyAllWindows()
+    # # Get frames to extract from a video, using the VideoFrameExtractor class
+    def create_frames(self, video_path, output_folder, frame_interval, starting_number):
+        """Create some frames from a video.
+        frame_interval is how many frames are skipped in the video, for each output frame.
+        starting_number is to prevent overwrites of existing frames. eg. if frame_10 exists, you want to start at 11 for the new frames."""
+        extractor = VideoFrameExtractor(video_path=video_path, frames_folder=output_folder,
+                                        frame_interval=frame_interval,
+                                        starting_number=starting_number)
+        extractor.extract_frames()
 
-# # Get frames to extract from a video, using the VideoFrameExtractor class
-# def create_frames(starting_number):
-#     extractor = VideoFrameExtractor(video_path=video_folder, frames_folder=frames_folder, frame_interval=15, starting_number=starting_number)
-#     extractor.extract_frames()
+    def scale_image(self, scale_percentage, img):
+        """Resize images to fit the screen.
+         A 4k image on a 1080p screen is not that great."""
+        width = int(img.shape[1] * scale_percentage / 100)
+        height = int(img.shape[0] * scale_percentage / 100)
+        return cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
 
-# Define video input and frame output folder
-# video_folder = './DoneVideos/zed1_2024-07-18_12h-00m-25s-485_top.mp4'
-frames_folder = './images'
 
-# Create frames with offset
-# create_frames(176)
+    # For calibration
+    def calibrate(self, img_path):
+        """Calibrate the green values of the mask, try new values and see what happens."""
+        img = cv2.imread(img_path)
+        mask = self.extract_green_plants_mask(img)
+        resized_image = self.scale_image(70, mask)
+        cv2.imshow("Green extracted", resized_image)
+        cv2.waitKey(0)
 
-# Annotate
-loop_dir_and_annotate('images')
 
-# For calibration
-# for img_name in os.listdir('./images'):
-# calibrateGreenValues(f'./images/frame1.jpg')
-# extract_green_plants_refined(f'./images/frame1.jpg')
+annotator = YoloAnnotator("config.yaml")
+
+# annotator.create_frames(annotator.cfg['paths']['video_folder'], annotator.images_dir, 15, 176)
+# annotator.calibrate("./images/frame1.jpg")
+annotator.annotate_images()

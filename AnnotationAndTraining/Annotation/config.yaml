@@ -1,0 +1,23 @@
+paths:
+  images_dir: "./images"
+  annotations_dir: "./annotations"
+  video_folder: "./DoneVideos/zed1_2024-07-18_12h-00m-25s-485_top.mp4"
+
+thresholds:
+  red_boundary: 14
+  green_min: 50
+  green_max: 250
+  red_max: 200
+  blue_max: 100
+  min_area: 600
+
+classes:
+  ids:
+    crop: 0
+    weed: 1
+  mapping:
+    '1': crop
+    '2': weed
+
+display:
+  scale_percent: 70
