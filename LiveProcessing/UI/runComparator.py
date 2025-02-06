@@ -24,7 +24,7 @@ class RunComparator:
         same_type = class1 == class2
         return distance <= delta and same_type
 
-    def compare_runs(self, run_id_1, run_id_2, delta=1e-2):
+    def compare_runs(self, run_id_1, run_id_2, delta=0.0002):
         """
         Compares detections between two runs.
 
@@ -50,16 +50,19 @@ class RunComparator:
         stayed = []
         removed = []
 
-        # For every detection in the first run, try to find a match in the second run.
+        # For every detection in the first run, try to find a match in the second run
         for det1 in detections_1:
             match_found = False
             for det2 in detections_2_remaining:
                 if self.is_similar(det1, det2, delta):
-                    stayed.append((det1, det2))
+                    # Match if found, so it sadly stayed
+                    stayed.append(det1)
                     # Remove the matched detection so it isn’t matched twice
                     detections_2_remaining.remove(det2)
                     match_found = True
-                    break  # Assuming one-to-one matching is sufficient
+                    break
+
+            # No match found, so it's successfully removed.
             if not match_found:
                 removed.append(det1)
 
@@ -73,13 +76,15 @@ class RunComparator:
             'new': new,
         }
 
-        print(f'Compared runs: {differences}')
+        # print(f'Compared runs: {differences}')
         self.db.add_compared_run(field_1, run_id_1, run_id_2)
         comparison_id = self.db.get_comparison_run(run_id_1, run_id_2)
 
         for diff_type, diff_list in differences.items():
             for diff_pair in diff_list:
-                x, y, _ = diff_pair[0]
+                if len(diff_pair) != 3:
+                    continue
+                x, y, _ = diff_pair
                 self.db.add_comparison(comparison_id[0], x, y, diff_type)
 
         return comparison_id
