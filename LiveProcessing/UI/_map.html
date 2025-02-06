@@ -47,8 +47,12 @@
                         selectMap(Number(fieldId))
                         break;
                     case "run_detections":
-                        handleRunDetections(parsedData.detections)
+                        plotDots(parsedData.detections, 'detections');
                         break;
+                    case "comparisons":
+                        plotDots(parsedData.comparisons, 'comparisons');
+                        break;
+
                     default:
                         break;
                 }
@@ -56,8 +60,8 @@
         });
     });
 
-    function handleRunDetections(detections) {
-        if (window.detectionLayer) {
+    function plotDots(dots, type) {
+         if (window.detectionLayer) {
             window.detectionLayer.clearLayers();
         }
 
@@ -65,11 +69,18 @@
         window.detectionLayer = L.layerGroup();
 
         // Loop through the detections and add markers to the layer
-        detections.forEach(detection => {
-            const [latitude, longitude, detectionClass] = detection;
-
-            // Choose a color or icon based on the detection class
-            let color = detectionClass === 0 ? 'blue' : 'red'; // Example: blue for 0, red for 1
+        dots.forEach(dot => {
+            let latitude = 0;
+            let longitude = 0;
+            let color = '#FFFFFF';
+            if(type === 'detections') {
+                [latitude, longitude, detectionClass] = dot;
+                // Choose a color or icon based on the detection class
+                color = detectionClass === 0 ? 'blue' : 'red'; // Example: blue for 0, red for 1
+            } else if(type === 'comparisons') {
+                [latitude, longitude, comparisonClass] = dot;
+                color = comparisonClass === 'stayed' ? 'red' : comparisonClass === 'removed' ? 'green' : comparisonClass === 'new' ? 'purple' : 'black'
+            }
 
             // Create a marker
             const marker = L.circleMarker([latitude, longitude], {

@@ -33,11 +33,11 @@ class Backend(QObject):
 
 
     def send_run_detections_from_fields_tab(self):
-        run_id = self.main_window.field_runs_dropdown.currentText()
+        run_id = self.main_window.runs_in_field_dropdown.currentText()
         self.send_detections(run_id)
 
     def send_run_detections_from_run_tab(self):
-        run_id = self.main_window.run_dropdown.currentText()
+        run_id = self.main_window.all_runs_dropdown.currentText()
         # self.goto_field_on_map_from_run_tab()
         self.send_detections(run_id)
 
@@ -55,4 +55,16 @@ class Backend(QObject):
         }
 
         json_data = json.dumps(data)
+        self.send_data_to_js.emit(json_data)
+
+    def send_comparisons(self, id):
+        comparisons = self.db.get_comparisons_by_id(id)
+
+        data = {
+            "identifier": "comparisons",
+            "comparisons": comparisons
+        }
+
+        json_data = json.dumps(data)
+        print(json_data)
         self.send_data_to_js.emit(json_data)

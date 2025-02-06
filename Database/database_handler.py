@@ -54,12 +54,44 @@ class DatabaseHandler:
             );
         ''')
 
+        # Create ComparedRuns table
+        self.cursor.execute('''
+               CREATE TABLE IF NOT EXISTS ComparedRuns (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   field_id INTEGER NOT NULL,
+                   run1 TEXT NOT NULL,
+                   run2 TEXT NOT NULL,
+                   FOREIGN KEY (field_id) REFERENCES Fields(id) ON DELETE CASCADE,
+                   FOREIGN KEY (run1) REFERENCES Runs(run_id) ON DELETE CASCADE,
+                   FOREIGN KEY (run2) REFERENCES Runs(run_id) ON DELETE CASCADE
+               );
+           ''')
+
+        # Create a comparison table
+        self.cursor.execute('''
+                       CREATE TABLE IF NOT EXISTS Comparison (
+                           id INTEGER PRIMARY KEY AUTOINCREMENT,
+                           compared_run_id INTEGER NOT NULL,
+                           x_coordinate REAL NOT NULL,
+                           y_coordinate REAL NOT NULL,
+                           class TEXT NOT NULL,
+                           FOREIGN KEY (compared_run_id) REFERENCES ComparedRuns(id)
+                       );
+                  ''')
+
         self.conn.commit()
 
     def create_new_run(self):
         # Generate a unique run_id
         run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         return run_id
+
+    def get_comparison_run(self, run_1, run_2):
+        self.cursor.execute('''
+        SELECT id FROM ComparedRuns
+        WHERE run1 = ? AND run2 = ?
+        ''', (run_1, run_2))
+        return self.cursor.fetchone()
 
     def add_field(self, name):
         """Add a new field to the Fields table."""
@@ -89,27 +121,23 @@ class DatabaseHandler:
         if not self.cursor.fetchone():  # Crop does not exist
             self.add_crop(crop_name)
 
+    def get_crop_id(self, crop_name):
+        crop = self.cursor.execute('SELECT id FROM Crops WHERE name = ?', (crop_name,)).fetchone()
+        return crop[0] if crop is not None else None
+
     def add_run(self, run_id, field_name, crop_name):
         """Add a new run, associating it with a field and a crop."""
         # Ensure field exists and get its ID
         self.ensure_field_exists(field_name)
-        self.cursor.execute('SELECT id FROM Fields WHERE name = ?', (field_name,))
-        field = self.cursor.fetchone()
-        if not field:
-            print(f"Field '{field_name}' does not exist.")
+        field_id = self.get_field_id_by_field_name(field_name)
+        if not field_id:
             return
-        field_id = field[0]
 
-        # Ensure crop exists and get its ID
-        self.cursor.execute('SELECT id FROM Crops WHERE name = ?', (crop_name,))
-        crop = self.cursor.fetchone()
-        if not crop:
-            print(f"Crop '{crop_name}' does not exist.")
+        crop_id = self.get_crop_id(crop_name)
+        if not crop_id:
             return
-        crop_id = crop[0]
 
         try:
-            # Use the actual INTEGER IDs for both field and crop
             self.cursor.execute('''
                 INSERT INTO Runs (run_id, field_id, crop_id)
                 VALUES (?, ?, ?)
@@ -117,6 +145,26 @@ class DatabaseHandler:
             self.conn.commit()
         except sqlite3.IntegrityError:
             print(f"Run ID '{run_id}' already exists.")
+
+    def add_compared_run(self, field_id, run1, run2):
+        try:
+            self.cursor.execute('''
+                INSERT INTO ComparedRuns (field_id, run1, run2)
+                VALUES (?, ?, ?)
+            ''', (field_id, run1, run2))
+            self.conn.commit()
+        except sqlite3.IntegrityError:
+            print(f"Compared Run already exists.")
+
+    def add_comparison(self, compared_id, x_coordinate, y_coordinate, comparison_class):
+        try:
+            self.cursor.execute('''
+            INSERT INTO Comparison (compared_run_id, x_coordinate, y_coordinate, class)
+            VALUES (?, ?, ?, ?)
+            ''', (compared_id, x_coordinate, y_coordinate, comparison_class))
+            self.conn.commit()
+        except sqlite3.IntegrityError:
+            print("Something went wrong")
 
     def add_detection(self, run_id, x, y, detection_class):
         """Add a new detection for a given run."""
@@ -271,3 +319,8 @@ class DatabaseHandler:
                 seen_crops.add(crop_name)
 
         print(f"Imported {len(seen_fields)} fields and {len(seen_crops)} crops")
+
+    def get_comparisons_by_id(self, comparison_id):
+        self.cursor.execute('''
+        SELECT x_coordinate, y_coordinate, class FROM Comparison WHERE compared_run_id = ?''', comparison_id)
+        return self.cursor.fetchall()

@@ -15,5 +15,4 @@ class MapHandler:
         }
 
         json_data = json.dumps(data)
-
         self.backend.send_data_to_js.emit(json_data)

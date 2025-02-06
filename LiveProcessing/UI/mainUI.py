@@ -7,6 +7,7 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QComboBox, QLabel, \
     QVBoxLayout, QTabWidget, QSpacerItem, QSizePolicy, QPushButton, QLineEdit, QHBoxLayout, QMessageBox
+from fontTools.feaLib.ast import fea_keywords
 
 from Database.database_handler import DatabaseHandler
 from LiveProcessing.UI.backend import Backend
@@ -20,50 +21,62 @@ if TYPE_CHECKING:
 class MainWindow(QMainWindow):
     def __init__(self, state_manager: 'StateManager', video_folder):
         super().__init__()
-
-        self.state_manager = state_manager
         self.video_folder = video_folder
 
-        self.setWindowTitle("Weed Detection Mapping")
-        self.text_color = 'rgb(188, 190, 196)'
-        self.background_dark = 'rgb(30, 31, 34)'
-        self.background_light = 'rgb(43, 45, 48)'
-        self.big_font = QFont("Courier New", 20)
-        self.small_font = QFont("Courier New", 15)
-
-        self.field_dropdown = QComboBox()
-        self.field_runs_dropdown = QComboBox()
-        self.crop_dropdown = QComboBox()
-        self.run_dropdown = QComboBox()
-        self.generate_field_combobox = QComboBox()
-
-        self.field_name_label = QLabel("Not selected")
-        self.field_crop_label = QLabel("Not selected")
-        self.field_category_label = QLabel("Not selected")
-        self.field_runs_label = QLabel("Field runs:")
-
-        self.map_frame = QFrame()
-        self.map_frame.setStyleSheet(f"background-color: {self.background_dark};")
-
-        # Set up QWebChannel
-        self.web_channel = QWebChannel()
-
-        self.spacer = QSpacerItem(20, 70, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
-
-        self.available_videos = QComboBox()
-
-        self.start_gps_input_lat = QLineEdit()
-        self.start_gps_input_lon = QLineEdit()
-        self.end_gps_input_lat = QLineEdit()
-        self.end_gps_input_lon = QLineEdit()
-
+        # Define other helper classes
         self.db = DatabaseHandler()
         self.backend = Backend(self, self.db)
         self.mapHandler = MapHandler(self.backend)
         self.uiManager = UiUpdater(self, self.db, self.backend)
+        self.state_manager = state_manager
 
+        # Define colors
+        self.text_color       = 'rgb(188, 190, 196)'
+        self.background_dark  = 'rgb(30, 31, 34)'
+        self.background_light = 'rgb(43, 45, 48)'
+
+        # Define fonts
+        self.big_font   = QFont("Courier New", 20)
+        self.small_font = QFont("Courier New", 15)
+
+        # Initiate dropdowns
+        self.all_fields_dropdown       = QComboBox()
+        self.all_crops_dropdown        = QComboBox()
+        self.all_runs_dropdown         = QComboBox()
+        self.generate_field_combobox   = QComboBox()
+        self.runs_in_field_dropdown    = QComboBox()
+        self.available_videos          = QComboBox()
+        self.compare_runs_one_dropdown = QComboBox()
+        self.compare_runs_two_dropdown = QComboBox()
+
+        # Initiate selected field labels
+        self.selected_field_name_label     = self.make_label("Not selected")
+        self.selected_field_crop_label     = self.make_label("Not selected")
+        self.selected_field_category_label = self.make_label("Not selected")
+
+        # Setup map frame
+        self.map_frame = QFrame()
+        self.map_frame.setStyleSheet(f"background-color: {self.background_dark};")
+
+        self.web_channel = QWebChannel()
+
+        # Add data from db to the dropdowns
+        self.uiManager.update_field_section_dropdowns()
+
+        # Spacer for when whitespace is preferred
+        self.spacer = QSpacerItem(20, 70, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
+
+        # Define GPS input fields for generating run
+        self.start_gps_input_lat = QLineEdit()
+        self.start_gps_input_lon = QLineEdit()
+        self.end_gps_input_lat   = QLineEdit()
+        self.end_gps_input_lon   = QLineEdit()
+
+        # Setup handler for when data is received
         self.backend.field_data_received.connect(self.handle_field_update)
 
+        # Setup window
+        self.setWindowTitle("Weed Detection Mapping")
         self.main_ui()
         self.showMaximized()
 
@@ -87,18 +100,15 @@ class MainWindow(QMainWindow):
         tabs = QTabWidget(settings_frame)
         tabs.setStyleSheet(f"background-color: {self.background_light}; color: {self.text_color};")
 
-        # Add data from db to the dropdowns
-        self.uiManager.update_field_section_dropdowns()
-
         # Create tabs
         fields_tab = self.create_tab("Fields")
-        crops_tab = self.create_tab("Crops")
-        runs_tab = self.create_tab("Runs")
+        crops_tab  = self.create_tab("Crops")
+        runs_tab   = self.create_tab("Runs")
 
         # Add tabs to the tab widget
         tabs.addTab(fields_tab, "Fields")
-        tabs.addTab(crops_tab, "Crops")
-        tabs.addTab(runs_tab, "Runs")
+        tabs.addTab(crops_tab,  "Crops")
+        tabs.addTab(runs_tab,   "Runs")
 
         # Add tabs to the settingsFrame layout
         layout = QVBoxLayout(settings_frame)
@@ -130,30 +140,30 @@ class MainWindow(QMainWindow):
             self.define_crops_dropdown(label, tab_layout)
             return tab
 
+    def goto_field(self):
+        field_name = self.all_fields_dropdown.currentText().strip("Field_")
+        self.mapHandler.goto_field(field_name)
 
     def define_field_tab(self, tab_layout):
-        dropdown = self.field_dropdown
-        dropdown.currentIndexChanged.connect(self.mapHandler.goto_field)
-
-        self.field_runs_dropdown.currentIndexChanged.connect(self.backend.send_run_detections_from_fields_tab)
+        self.all_fields_dropdown.currentIndexChanged.connect(self.goto_field)
+        self.runs_in_field_dropdown.currentIndexChanged.connect(self.backend.send_run_detections_from_fields_tab)
 
         # Existing fields from db
-        own_fields_label = QLabel()
-        own_fields_label.setText("Fields:")
-        own_fields_label.setStyleSheet(f"color: {self.text_color};")
-        own_fields_label.setFont(self.big_font)
-
+        own_fields_label = self.make_label("Fields:", small=False)
         tab_layout.addWidget(own_fields_label)
-        tab_layout.addWidget(dropdown)
-
+        tab_layout.addWidget(self.all_fields_dropdown)
         tab_layout.addItem(self.spacer)
 
         info_layout = self.define_info_section()
 
         tab_layout.addLayout(info_layout)
 
-        tab_layout.addWidget(self.field_runs_label)
-        tab_layout.addWidget(self.field_runs_dropdown)
+        field_runs_label = self.make_label("Field Runs:", small=False)
+        tab_layout.addWidget(field_runs_label)
+        tab_layout.addWidget(self.runs_in_field_dropdown)
+        tab_layout.addItem(self.spacer)
+
+        tab_layout.addLayout(self.compare_run_ui())
 
         return tab_layout
 
@@ -161,54 +171,38 @@ class MainWindow(QMainWindow):
         info_layout = QVBoxLayout()
 
         # Info header
-        info_label = QLabel("Info:")
-        info_label.setFont(self.big_font)
-        info_label.setStyleSheet(f"color: {self.text_color};")
+        info_label = self.make_label("Info:", False)
         info_layout.addWidget(info_label)
 
         # Define field layouts dynamically
-        info_layout.addLayout(self._create_info_row("Field Name:", self.field_name_label))
-        info_layout.addLayout(self._create_info_row("Crop Name:", self.field_crop_label))
-        info_layout.addLayout(self._create_info_row("Field Category:", self.field_category_label))
+        info_layout.addLayout(self._create_info_row("Field Name:", self.selected_field_name_label))
+        info_layout.addLayout(self._create_info_row("Crop Name:", self.selected_field_crop_label))
+        info_layout.addLayout(self._create_info_row("Field Category:", self.selected_field_category_label))
 
         info_layout.addItem(self.spacer)
-
-        # Apply consistent styling
-        self._apply_info_label_styles()
 
         return info_layout
 
     def _create_info_row(self, label_text, value_label):
         """Helper method to create an HBox layout with a fixed label and a value label."""
         layout = QHBoxLayout()
-
-        label = QLabel(label_text)
-        label.setFont(self.small_font)
-        label.setStyleSheet(f"color: {self.text_color};")
+        label = self.make_label(label_text)
 
         layout.addWidget(label, 1)  # 20% width
         layout.addWidget(value_label, 4)  # 80% width
 
         return layout
 
-    def _apply_info_label_styles(self):
-        """Applies consistent styles to field labels."""
-        for label in [self.field_name_label, self.field_category_label, self.field_crop_label]:
-            label.setFont(self.small_font)
-            label.setStyleSheet(f"color: {self.text_color};")
-
-        self.field_runs_label.setFont(self.big_font)
-        self.field_runs_label.setStyleSheet(f"color: {self.text_color};")
-
 
     def define_runs_dropdown(self, label, tab_layout):
-        dropdown = self.run_dropdown
-        self.run_dropdown.currentIndexChanged.connect(self.backend.send_run_detections_from_run_tab)
+        # Delete run section
+        self.all_runs_dropdown.currentIndexChanged.connect(self.backend.send_run_detections_from_run_tab)
         label.setFont(self.small_font)
         delete_run_button = QPushButton("Delete run", self)
         delete_run_button.clicked.connect(self.delete_selected_run)
+
         tab_layout.addWidget(label)
-        tab_layout.addWidget(dropdown)
+        tab_layout.addWidget(self.all_runs_dropdown)
         tab_layout.addWidget(delete_run_button)
         tab_layout.addItem(self.spacer)
 
@@ -237,7 +231,7 @@ class MainWindow(QMainWindow):
         field_label = self.make_label("Field: ")
 
         self.generate_field_combobox.addItems(
-            [self.field_dropdown.itemText(i) for i in range(self.field_dropdown.count())])
+            [self.all_fields_dropdown.itemText(i) for i in range(self.all_fields_dropdown.count())])
 
         field_row_layout.addWidget(field_label)
         field_row_layout.addWidget(self.generate_field_combobox)
@@ -252,12 +246,45 @@ class MainWindow(QMainWindow):
 
         # Generate Run button
         generate_run_button = QPushButton("Generate run", self)
-        generate_run_button.clicked.connect(self.generate_run)
+        generate_run_button.clicked.connect(self.uiManager.generate_run)
 
         tab_layout.addItem(self.spacer)
         tab_layout.addWidget(generate_run_button)
 
         return tab_layout
+
+    def compare_run_ui(self):
+        compare_run_layout = QVBoxLayout()
+        compare_run_label = self.make_label("Compare runs:", small=False)
+        compare_run_layout.addWidget(compare_run_label)
+
+        run_one_layout = QHBoxLayout()
+        run_one_label = self.make_label("Run One:")
+
+        # Populate dropdowns by copying data, not by reference
+        self.compare_runs_one_dropdown.addItems(
+            [self.runs_in_field_dropdown.itemText(i) for i in range(self.runs_in_field_dropdown.count())])
+
+        self.compare_runs_two_dropdown.addItems(
+            [self.runs_in_field_dropdown.itemText(i) for i in range(self.runs_in_field_dropdown.count())])
+
+
+        run_two_layout = QHBoxLayout()
+        run_two_label = self.make_label("Run Two:")
+        run_one_layout.addWidget(run_one_label, 1)
+        run_one_layout.addWidget(self.compare_runs_one_dropdown, 3)
+        run_two_layout.addWidget(run_two_label, 1)
+        run_two_layout.addWidget(self.compare_runs_two_dropdown, 3)
+
+        compare_run_button = QPushButton("Compare runs", self)
+        compare_run_button.clicked.connect(self.uiManager.compare_runs)
+
+        compare_run_layout.addLayout(run_one_layout)
+        compare_run_layout.addLayout(run_two_layout)
+        compare_run_layout.addWidget(compare_run_button)
+        compare_run_layout.addItem(self.spacer)
+
+        return compare_run_layout
 
     def create_gps_input_row(self, label_text, lat_input, lon_input):
         gps_input_row = QHBoxLayout()
@@ -271,48 +298,8 @@ class MainWindow(QMainWindow):
         gps_input_row.addWidget(lon_input)
         return gps_input_row
 
-    def generate_run(self):
-        # Get inputs
-        selected_video = self.available_videos.currentText()
-        selected_field = self.generate_field_combobox.currentText()
-
-        # Get GPS values with clear names
-        ns_start = self.start_gps_input_lat.text().strip()
-        ew_start = self.start_gps_input_lon.text().strip()
-        ns_end = self.end_gps_input_lat.text().strip()
-        ew_end = self.end_gps_input_lon.text().strip()
-
-        if not self.validate_coordinates(ns_start, ew_start, ns_end, ew_end):
-            print("Invalid GPS coordinates")
-            return
-
-        try:
-            # Convert to floats after validation
-            start_gps = (float(ns_start), float(ew_start))
-            end_gps = (float(ns_end), float(ew_end))
-            self.state_manager.make_run(selected_video, selected_field, start_gps, end_gps)
-        except ValueError:
-            print("GPS coordinates must be numbers")
-
-    def validate_coordinates(self, lat1, lon1, lat2, lon2):
-        """Validate GPS coordinates are within Earth's ranges"""
-
-        def is_valid(ns, ew):
-            try:
-                lat = float(ns)
-                lon = float(ew)
-                return -90 <= lat <= 90 and -180 <= lon <= 180
-            except ValueError:
-                return False
-
-        return all([
-            lat1 and lon1 and lat2 and lon2,  # Check non-empty
-            is_valid(lat1, lon1),  # Check start coordinates
-            is_valid(lat2, lon2)  # Check end coordinates
-        ])
-
     def delete_selected_run(self):
-        selected_run = self.run_dropdown.currentText()
+        selected_run = self.all_runs_dropdown.currentText()
 
         confirm_deletion = QMessageBox(self)
         confirm_deletion.setIcon(QMessageBox.Icon.Question)
@@ -333,16 +320,19 @@ class MainWindow(QMainWindow):
 
     def define_crops_dropdown(self, label, tab_layout):
         # todo
-        dropdown = self.crop_dropdown
+        dropdown = self.all_crops_dropdown
         tab_layout.addWidget(label)
         tab_layout.addWidget(dropdown)
 
         return tab_layout
 
-    def make_label(self, text):
+    def make_label(self, text, small=True):
         label = QLabel(text)
         label.setStyleSheet(f"color: {self.text_color};")
-        label.setFont(self.small_font)
+        if small:
+            label.setFont(self.small_font)
+        if not small:
+            label.setFont(self.big_font)
         return label
 
 
