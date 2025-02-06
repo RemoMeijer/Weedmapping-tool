@@ -1,4 +1,3 @@
-import json
 import os
 
 from PyQt6.QtCore import Qt, QUrl
@@ -13,8 +12,10 @@ from Database.database_handler import DatabaseHandler
 from LiveProcessing.UI.backend import Backend
 from LiveProcessing.UI.mapHandler import MapHandler
 from LiveProcessing.UI.uiUpdater import UiUpdater
-from StateManager import StateManager
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from StateManager import StateManager
 
 class MainWindow(QMainWindow):
     def __init__(self, state_manager: 'StateManager', video_folder):
@@ -61,7 +62,7 @@ class MainWindow(QMainWindow):
         self.mapHandler = MapHandler(self.backend)
         self.uiManager = UiUpdater(self, self.db, self.backend)
 
-        self.backend.field_data_recieved.connect(self.handle_field_update)
+        self.backend.field_data_received.connect(self.handle_field_update)
 
         self.main_ui()
         self.showMaximized()

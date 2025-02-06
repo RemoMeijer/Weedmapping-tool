@@ -4,10 +4,9 @@ import sys
 from PyQt6.QtWidgets import QApplication
 
 from LiveProcessing.FrameExtractor.getFramesFromVideo import VideoFrameExtractor
-from LiveProcessing.GpsConversion.ConvertVideoToGps import GPSMapper
+from LiveProcessing.UI.mainUI import MainWindow
 from LiveProcessing.ImageStitching.StitchRow import ImageStitcher
 from LiveProcessing.MachineLearning.DetectAndPlotBatch import BatchProcessor
-from LiveProcessing.UI.mainUI import MainWindow
 
 class StateManager:
     def __init__(self, frames_folder, stitched_folder, ml_file, video_folder):

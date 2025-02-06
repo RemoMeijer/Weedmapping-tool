@@ -1,11 +1,12 @@
 import json
+from typing import TYPE_CHECKING
 
-from LiveProcessing.UI.backend import Backend
-
+if TYPE_CHECKING:
+    from LiveProcessing.UI.backend import Backend
 
 class MapHandler:
     def __init__(self, backend: 'Backend'):
-        self.backend = backend
+        self.backend: Backend = backend
 
     def goto_field(self, field_id):
         data = {

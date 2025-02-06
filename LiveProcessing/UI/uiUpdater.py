@@ -1,15 +1,17 @@
-from PyQt6.QtWidgets import QLabel, QComboBox
+from typing import TYPE_CHECKING
 
-from Database.database_handler import DatabaseHandler
-from LiveProcessing.UI.backend import Backend
-from LiveProcessing.UI.mainUI import MainWindow
-
+if TYPE_CHECKING:
+    from LiveProcessing.UI.mainUI import MainWindow
+    from Database.database_handler import DatabaseHandler
+    from LiveProcessing.UI.backend import Backend
 
 class UiUpdater:
     def __init__(self, main_window: 'MainWindow', db: 'DatabaseHandler', back_end: 'Backend'):
-        self.main_window = main_window
-        self.db = db
-        self.back_end = back_end
+
+
+        self.main_window: MainWindow = main_window
+        self.db: DatabaseHandler = db
+        self.back_end: Backend = back_end
 
     def update_ui(self, parsed_data):
         # Data we want to display in the info section

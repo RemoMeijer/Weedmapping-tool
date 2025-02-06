@@ -1,18 +1,21 @@
 import json
-
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
-from Database.database_handler import DatabaseHandler
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from Database.database_handler import DatabaseHandler
+    from LiveProcessing.UI.mainUI import MainWindow
 
 class Backend(QObject):
     # Signal to send data from Python to JavaScript
     send_data_to_js = pyqtSignal(str)
-    field_data_recieved = pyqtSignal(dict)
+    field_data_received = pyqtSignal(dict)
 
-    def __init__(self, main_window, db: 'DatabaseHandler'):
+    def __init__(self, main_window: 'MainWindow', db: 'DatabaseHandler'):
         super().__init__()
-        self.main_window = main_window # Main window reference to set fields with incoming data
-        self.db = db
+
+        self.main_window: MainWindow = main_window # Main window reference to set fields with incoming data
+        self.db: DatabaseHandler = db
 
     @pyqtSlot(str)
     def receive_data_from_js(self, data):
@@ -23,7 +26,7 @@ class Backend(QObject):
         if identifier == "field":
             field_properties = parsed_data.get("properties", {})
             # Emit signal that some field data is received
-            self.field_data_recieved.emit(field_properties)
+            self.field_data_received.emit(field_properties)
 
         else:
             print(f"Unknown identifier: {identifier}")
