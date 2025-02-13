@@ -57,8 +57,11 @@ class Backend(QObject):
         json_data = json.dumps(data)
         self.send_data_to_js.emit(json_data)
 
-    def send_comparisons(self, id):
-        comparisons = self.db.get_comparisons_by_id(id)
+    def send_comparisons_current_text(self):
+        self.send_comparisons( self.main_window.compared_list.currentText())
+
+    def send_comparisons(self, comparison_id):
+        comparisons = self.db.get_comparisons_by_id(comparison_id)
 
         data = {
             "identifier": "comparisons",

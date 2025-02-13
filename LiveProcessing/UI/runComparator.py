@@ -1,4 +1,5 @@
 from math import sqrt
+from pyproj import Geod
 
 from Database.database_handler import DatabaseHandler
 
@@ -7,22 +8,24 @@ class RunComparator:
     def __init__(self, db: 'DatabaseHandler'):
         self.db = db
 
-    def is_similar(self, det1, det2, delta=1e-2):
-        """
-        Compare two detections. Adjust the logic below based on what attributes your
-        detection objects have (e.g. x, y coordinates, type, etc.).
+    def is_similar(self, det1, det2, delta_cm=100):
+        # Extract latitude, longitude, and class from detections
+        lat1, lon1, class1 = det1
+        lat2, lon2, class2 = det2
 
-        For example, if your detection is a dict or object with attributes `x` and `y`:
-        """
-        # Example: compare positions (and maybe a type field)
-        x1, y1, class1 = det1
-        x2, y2, class2 = det2
+        # Create a Geod object (WGS84 ellipsoid is commonly used for GPS coordinates)
+        geod = Geod(ellps="WGS84")
 
-        dx = x1 - x2
-        dy = y1 - y2
-        distance = sqrt(dx * dx + dy * dy)
+        # Calculate the geodesic distance between the two points in meters
+        _, _, distance_m = geod.inv(lon1, lat1, lon2, lat2)
+
+        # Convert delta from centimeters to meters
+        distance_cm = distance_m * 100
+        print(distance_cm)
+
+        # Check if distance is within delta and classes are the same
         same_type = class1 == class2
-        return distance <= delta and same_type
+        return abs(distance_cm) <= delta_cm and same_type
 
     def compare_runs(self, run_id_1, run_id_2, delta=0.0002):
         """
@@ -54,7 +57,7 @@ class RunComparator:
         for det1 in detections_1:
             match_found = False
             for det2 in detections_2_remaining:
-                if self.is_similar(det1, det2, delta):
+                if self.is_similar(det1, det2):
                     # Match if found, so it sadly stayed
                     stayed.append(det1)
                     # Remove the matched detection so it isn’t matched twice

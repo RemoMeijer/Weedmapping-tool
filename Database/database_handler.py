@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime
 import os
 
+
 class DatabaseHandler:
     def __init__(self):
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -71,7 +72,7 @@ class DatabaseHandler:
         self.cursor.execute('''
                        CREATE TABLE IF NOT EXISTS Comparison (
                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                           compared_run_id INTEGER NOT NULL,
+                           compared_run_id TEXT NOT NULL,
                            x_coordinate REAL NOT NULL,
                            y_coordinate REAL NOT NULL,
                            class TEXT NOT NULL,
@@ -259,6 +260,10 @@ class DatabaseHandler:
         self.cursor.execute("SELECT run_id FROM Runs")
         return [row[0] for row in self.cursor.fetchall()]
 
+    def get_all_comparisons(self):
+        self.cursor.execute("SELECT compared_run_id FROM Comparison")
+        return [row[0] for row in self.cursor.fetchall()]
+
     def close_db(self):
         # Close the database connection
         self.conn.close()
@@ -272,7 +277,7 @@ class DatabaseHandler:
         ''', (run_id,))
         return self.cursor.fetchall()
 
-    def delete_run_by_run_id(self, run_id):
+    def delete_run_by_run_name(self, run_id):
         """Delete all detections for a specific run ID."""
         self.cursor.execute('''
         DELETE FROM Detections WHERE run_id = ?
@@ -288,6 +293,8 @@ class DatabaseHandler:
         self.cursor.execute('DELETE FROM Detections')
         self.cursor.execute('DELETE FROM Runs')
         self.cursor.execute('DELETE FROM Fields')
+        self.cursor.execute('DELETE FROM Comparisons')
+        self.cursor.execute('DELETE FROM ComparedRuns')
 
         self.conn.commit()
 
@@ -324,3 +331,16 @@ class DatabaseHandler:
         self.cursor.execute('''
         SELECT x_coordinate, y_coordinate, class FROM Comparison WHERE compared_run_id = ?''', comparison_id)
         return self.cursor.fetchall()
+
+    def get_compared_runs_by_field(self, field_id):
+        self.cursor.execute('''
+        SELECT id FROM ComparedRuns WHERE field_id = ?''', (field_id,))
+        return [str(row[0]) for row in self.cursor.fetchall()]
+
+    def delete_comparison_by_id(self, comparison_id):
+        self.cursor.execute('''
+        DELETE FROM Comparison WHERE compared_run_id = ?''', (comparison_id,))
+        self.conn.commit()
+        self.cursor.execute('''
+        DELETE FROM ComparedRuns WHERE id = ?''', (comparison_id,))
+        self.conn.commit()

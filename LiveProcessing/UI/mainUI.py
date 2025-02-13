@@ -15,8 +15,10 @@ from LiveProcessing.UI.mapHandler import MapHandler
 from LiveProcessing.UI.uiUpdater import UiUpdater
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from StateManager import StateManager
+
 
 class MainWindow(QMainWindow):
     def __init__(self, state_manager: 'StateManager', video_folder):
@@ -31,27 +33,40 @@ class MainWindow(QMainWindow):
         self.state_manager = state_manager
 
         # Define colors
-        self.text_color       = 'rgb(188, 190, 196)'
-        self.background_dark  = 'rgb(30, 31, 34)'
+        self.text_color = 'rgb(188, 190, 196)'
+        self.background_dark = 'rgb(30, 31, 34)'
         self.background_light = 'rgb(43, 45, 48)'
 
         # Define fonts
-        self.big_font   = QFont("Courier New", 20)
+        self.big_font = QFont("Courier New", 20)
         self.small_font = QFont("Courier New", 15)
 
         # Initiate dropdowns
-        self.all_fields_dropdown       = QComboBox()
-        self.all_crops_dropdown        = QComboBox()
-        self.all_runs_dropdown         = QComboBox()
-        self.generate_field_combobox   = QComboBox()
-        self.runs_in_field_dropdown    = QComboBox()
-        self.available_videos          = QComboBox()
+        self.all_fields_dropdown = QComboBox()
+        self.all_crops_dropdown = QComboBox()
+        self.all_runs_dropdown = QComboBox()
+        self.generate_field_combobox = QComboBox()
+        self.runs_in_field_dropdown = QComboBox()
+        self.available_videos = QComboBox()
         self.compare_runs_one_dropdown = QComboBox()
         self.compare_runs_two_dropdown = QComboBox()
+        self.compared_list = QComboBox()
+
+        self.dropdowns = (
+            self.all_fields_dropdown,
+            self.all_crops_dropdown,
+            self.all_runs_dropdown,
+            self.generate_field_combobox,
+            self.runs_in_field_dropdown,
+            self.available_videos,
+            self.compare_runs_one_dropdown,
+            self.compare_runs_two_dropdown,
+            self.compared_list,
+        )
 
         # Initiate selected field labels
-        self.selected_field_name_label     = self.make_label("Not selected")
-        self.selected_field_crop_label     = self.make_label("Not selected")
+        self.selected_field_name_label = self.make_label("Not selected")
+        self.selected_field_crop_label = self.make_label("Not selected")
         self.selected_field_category_label = self.make_label("Not selected")
 
         # Setup map frame
@@ -61,7 +76,7 @@ class MainWindow(QMainWindow):
         self.web_channel = QWebChannel()
 
         # Add data from db to the dropdowns
-        self.uiManager.update_field_section_dropdowns()
+        self.uiManager.update_dropdowns()
 
         # Spacer for when whitespace is preferred
         self.spacer = QSpacerItem(20, 70, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
@@ -69,8 +84,8 @@ class MainWindow(QMainWindow):
         # Define GPS input fields for generating run
         self.start_gps_input_lat = QLineEdit()
         self.start_gps_input_lon = QLineEdit()
-        self.end_gps_input_lat   = QLineEdit()
-        self.end_gps_input_lon   = QLineEdit()
+        self.end_gps_input_lat = QLineEdit()
+        self.end_gps_input_lon = QLineEdit()
 
         # Setup handler for when data is received
         self.backend.field_data_received.connect(self.handle_field_update)
@@ -102,13 +117,13 @@ class MainWindow(QMainWindow):
 
         # Create tabs
         fields_tab = self.create_tab("Fields")
-        crops_tab  = self.create_tab("Crops")
-        runs_tab   = self.create_tab("Runs")
+        crops_tab = self.create_tab("Crops")
+        runs_tab = self.create_tab("Runs")
 
         # Add tabs to the tab widget
         tabs.addTab(fields_tab, "Fields")
-        tabs.addTab(crops_tab,  "Crops")
-        tabs.addTab(runs_tab,   "Runs")
+        tabs.addTab(crops_tab, "Crops")
+        tabs.addTab(runs_tab, "Runs")
 
         # Add tabs to the settingsFrame layout
         layout = QVBoxLayout(settings_frame)
@@ -165,6 +180,18 @@ class MainWindow(QMainWindow):
 
         tab_layout.addLayout(self.compare_run_ui())
 
+        compared_list_label = self.make_label("Compared list:", small=False)
+        tab_layout.addWidget(compared_list_label)
+        self.compared_list.currentIndexChanged.connect(self.backend.send_comparisons_current_text)
+        self.compared_list.activated.connect(self.backend.send_comparisons_current_text)
+
+        tab_layout.addWidget(self.compared_list)
+
+        delete_comparison = QPushButton("Delete Comparison")
+        delete_comparison.setStyleSheet(f"color: {self.text_color};")
+        delete_comparison.clicked.connect(self.uiManager.delete_comparison)
+        tab_layout.addWidget(delete_comparison)
+
         return tab_layout
 
     def define_info_section(self):
@@ -192,7 +219,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(value_label, 4)  # 80% width
 
         return layout
-
 
     def define_runs_dropdown(self, label, tab_layout):
         # Delete run section
@@ -230,15 +256,13 @@ class MainWindow(QMainWindow):
         field_row_layout = QHBoxLayout()
         field_label = self.make_label("Field: ")
 
-        self.generate_field_combobox.addItems(
-            [self.all_fields_dropdown.itemText(i) for i in range(self.all_fields_dropdown.count())])
-
         field_row_layout.addWidget(field_label)
         field_row_layout.addWidget(self.generate_field_combobox)
         tab_layout.addLayout(field_row_layout)
 
         # Start and End GPS input fields in one row
-        gps_input_layout_start = self.create_gps_input_row("Start GPS:\t", self.start_gps_input_lat, self.start_gps_input_lon)
+        gps_input_layout_start = self.create_gps_input_row("Start GPS:\t", self.start_gps_input_lat,
+                                                           self.start_gps_input_lon)
         gps_input_layout_end = self.create_gps_input_row("End GPS:\t", self.end_gps_input_lat, self.end_gps_input_lon)
 
         tab_layout.addLayout(gps_input_layout_start)
@@ -267,7 +291,6 @@ class MainWindow(QMainWindow):
 
         self.compare_runs_two_dropdown.addItems(
             [self.runs_in_field_dropdown.itemText(i) for i in range(self.runs_in_field_dropdown.count())])
-
 
         run_two_layout = QHBoxLayout()
         run_two_label = self.make_label("Run Two:")
@@ -313,10 +336,9 @@ class MainWindow(QMainWindow):
         confirm_deletion.exec()
 
         if confirm_deletion.clickedButton() == delete_button:
-            self.db.delete_run_by_run_id(selected_run)
+            self.db.delete_run_by_run_name(selected_run)
             print(f"Deleted run {selected_run}")
-            self.uiManager.update_field_section_dropdowns()
-
+            self.uiManager.update_dropdowns()
 
     def define_crops_dropdown(self, label, tab_layout):
         # todo
@@ -334,7 +356,6 @@ class MainWindow(QMainWindow):
         if not small:
             label.setFont(self.big_font)
         return label
-
 
     def map_container(self):
         # Make container to run html map in
@@ -357,7 +378,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(web_view)
 
         return self.map_frame
-
 
     def handle_field_update(self, field_data):
         self.uiManager.update_ui(field_data)
