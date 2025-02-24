@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Leaflet Map Example</title>
+    <title>Leaflet Map - Crops & Weeds</title>
     <link rel="stylesheet" href="node_modules/leaflet/dist/leaflet.css">
     <style>
         #map {
@@ -12,6 +12,16 @@
         html, body {
             height: 100%;
             margin: 0;
+        }
+
+        .legend {
+            background: white;
+            padding: 10px;
+            font-size: 14px;
+            line-height: 18px;
+            color: #333;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.3);
         }
     </style>
 </head>
@@ -32,19 +42,20 @@
 
     let lastSelectedLayer = null;
     let geojsonLayer = null;
+    let cropLayer = L.layerGroup().addTo(map);
+    let weedLayer = L.layerGroup().addTo(map);
+    let comparisonLayer = L.layerGroup().addTo(map);
 
     // Set up the WebChannel
     document.addEventListener('DOMContentLoaded', () => {
         new QWebChannel(qt.webChannelTransport, (channel) => {
             window.backend = channel.objects.backend;
 
-            // Handle data sent from Python
             backend.send_data_to_js.connect((data) => {
                 let parsedData = JSON.parse(data);
                 switch (parsedData.identifier) {
                     case "field":
-                        let fieldId = parsedData.field_id;
-                        selectMap(Number(fieldId))
+                        selectMap(Number(parsedData.field_id));
                         break;
                     case "run_detections":
                         plotDots(parsedData.detections, 'detections');
@@ -52,7 +63,6 @@
                     case "comparisons":
                         plotDots(parsedData.comparisons, 'comparisons');
                         break;
-
                     default:
                         break;
                 }
@@ -61,128 +71,120 @@
     });
 
     function plotDots(dots, type) {
-         if (window.detectionLayer) {
-            window.detectionLayer.clearLayers();
-        }
+        cropLayer.clearLayers();
+        weedLayer.clearLayers();
+        comparisonLayer.clearLayers();
 
-        // Create a new layer for detections
-        window.detectionLayer = L.layerGroup();
-
-        // Loop through the detections and add markers to the layer
         dots.forEach(dot => {
-            let latitude = 0;
-            let longitude = 0;
-            let color = '#FFFFFF';
-            if(type === 'detections') {
-                [latitude, longitude, detectionClass] = dot;
-                // Choose a color or icon based on the detection class
-                color = detectionClass === 0 ? 'blue' : 'red'; // Example: blue for 0, red for 1
+            let latitude, longitude, detectionClass, color, layer;
+
+            [latitude, longitude, detectionClass] = dot;
+            if(type==='detections') {
+                 if (detectionClass === 0) {
+                    color = 'blue'; // Crop
+                    layer = cropLayer;
+                } else {
+                    color = 'red'; // Weed
+                    layer = weedLayer;
+                }
             } else if(type === 'comparisons') {
                 [latitude, longitude, comparisonClass] = dot;
                 color = comparisonClass === 'stayed' ? 'red' : comparisonClass === 'removed' ? 'green' : comparisonClass === 'new' ? 'purple' : 'black'
+                layer = comparisonLayer;
             }
 
-            // Create a marker
+
             const marker = L.circleMarker([latitude, longitude], {
                 radius: 1,
                 color: color,
                 fillColor: color,
                 fillOpacity: 0.8
             });
+            marker.addTo(layer);
 
-            // Add the marker to the detection layer
-            marker.addTo(window.detectionLayer);
         });
-
-        // Add the detection layer to the map
-        window.detectionLayer.addTo(map);
     }
 
     function selectMap(field_id) {
         if (geojsonLayer) {
             geojsonLayer.eachLayer((layer) => {
                 if (layer.feature.properties.id === field_id) {
-                    let data_to_send = {
-                        identifier: "field",
-                        properties: layer.feature.properties
-                    }
+                    let data_to_send = { identifier: "field", properties: layer.feature.properties };
                     backend.receive_data_from_js(JSON.stringify(data_to_send));
 
-                    // Highlight the field
                     if (lastSelectedLayer) {
-                        lastSelectedLayer.setStyle({
-                            color: '#ff7800', // Reset previous layer to original color
-                            weight: 5,
-                            opacity: 0.65
-                        });
+                        lastSelectedLayer.setStyle({ color: '#ff7800', weight: 5, opacity: 0.65 });
                     }
 
-                    layer.setStyle({
-                        color: '#4070ff',
-                        weight: 5,
-                        opacity: 0.8
-                    });
+                    layer.setStyle({ color: '#4070ff', weight: 5, opacity: 0.8 });
 
-                    // Center the map on the selected field
                     map.fitBounds(layer.getBounds());
-
-                    // Remember this layer as the last selected one
                     lastSelectedLayer = layer;
                 }
             });
         }
     }
 
-    // Action when clicked on land plot
+    // Add legend control
+    let legend = L.control({ position: 'topright' });
+
+    legend.onAdd = function () {
+        let div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = `
+            <strong>Legend</strong><br>
+            <span style="color: blue;">&#9679;</span> Crop <br>
+            <span style="color: red;">&#9679;</span> Weed <br>
+            <label><input type="checkbox" id="toggleCrops" checked> Show Crops</label><br>
+            <label><input type="checkbox" id="toggleWeeds" checked> Show Weeds</label>
+        `;
+
+        L.DomEvent.disableClickPropagation(div);
+        return div;
+    };
+
+    legend.addTo(map);
+
+    document.addEventListener('change', (event) => {
+        if (event.target.id === 'toggleCrops') {
+            if (event.target.checked) {
+                cropLayer.addTo(map);
+            } else {
+                map.removeLayer(cropLayer);
+            }
+        }
+        if (event.target.id === 'toggleWeeds') {
+            if (event.target.checked) {
+                weedLayer.addTo(map);
+            } else {
+                map.removeLayer(weedLayer);
+            }
+        }
+    });
+
     function onPolygonClick(e) {
         let layer = e.target;
 
-        // Reset the previous layer's style
         if (lastSelectedLayer) {
-            lastSelectedLayer.setStyle({
-                color: '#ff7800',
-                weight: 5,
-                opacity: 0.65
-            });
+            lastSelectedLayer.setStyle({ color: '#ff7800', weight: 5, opacity: 0.65 });
         }
 
-        // Highlight the clicked layer
-        layer.setStyle({
-            color: '#4070ff',
-            weight: 5,
-            opacity: 0.8
-        });
-
+        layer.setStyle({ color: '#4070ff', weight: 5, opacity: 0.8 });
         lastSelectedLayer = layer;
-
-        // Center map on the selected field
         map.fitBounds(layer.getBounds());
 
-        // Send field properties back to Python
-        let data_to_send = {
-            identifier: "field",
-            properties: layer.feature.properties
-        }
+        let data_to_send = { identifier: "field", properties: layer.feature.properties };
         backend.receive_data_from_js(JSON.stringify(data_to_send));
     }
 
-    // Bind events to each GeoJSON feature
     function onEachFeature(feature, layer) {
-        layer.on({
-            click: onPolygonClick
-        });
+        layer.on({ click: onPolygonClick });
     }
 
-    // Load GeoJSON data
     fetch('WillemPercelen.geojson')
         .then(response => response.json())
         .then(data => {
             geojsonLayer = L.geoJSON(data, {
-                style: {
-                    "color": "#ff7800",
-                    "weight": 5,
-                    "opacity": 0.65
-                },
+                style: { "color": "#ff7800", "weight": 5, "opacity": 0.65 },
                 onEachFeature: onEachFeature
             }).addTo(map);
         })

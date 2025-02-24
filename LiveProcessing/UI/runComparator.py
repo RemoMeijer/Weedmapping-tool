@@ -21,7 +21,6 @@ class RunComparator:
 
         # Convert delta from centimeters to meters
         distance_cm = distance_m * 100
-        print(distance_cm)
 
         # Check if distance is within delta and classes are the same
         same_type = class1 == class2
