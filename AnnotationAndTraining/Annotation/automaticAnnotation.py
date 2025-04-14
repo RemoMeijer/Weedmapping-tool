@@ -167,5 +167,5 @@ class YoloAnnotator:
 annotator = YoloAnnotator("config.yaml")
 
 # annotator.create_frames(annotator.cfg['paths']['video_folder'], annotator.images_dir, 15, 176)
-# annotator.calibrate("./images/frame170.jpg")
-annotator.annotate_images()
+annotator.calibrate("./images/frame170.jpg")
+# annotator.annotate_images()
