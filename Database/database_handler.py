@@ -291,9 +291,8 @@ class DatabaseHandler:
         # Never touch this one lol
         """Delete all rows from Runs and Detections tables."""
         self.cursor.execute('DELETE FROM Detections')
+        self.cursor.execute('DELETE FROM Comparison')
         self.cursor.execute('DELETE FROM Runs')
-        self.cursor.execute('DELETE FROM Fields')
-        self.cursor.execute('DELETE FROM Comparisons')
         self.cursor.execute('DELETE FROM ComparedRuns')
 
         self.conn.commit()

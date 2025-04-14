@@ -44,9 +44,10 @@
     let geojsonLayer = null;
     let cropLayer = L.layerGroup().addTo(map);
     let weedLayer = L.layerGroup().addTo(map);
-    let comparisonLayer = L.layerGroup().addTo(map);
+    let stayedLayer = L.layerGroup().addTo(map);
+    let removedLayer = L.layerGroup().addTo(map);
+    let newLayer = L.layerGroup().addTo(map);
 
-    // Set up the WebChannel
     document.addEventListener('DOMContentLoaded', () => {
         new QWebChannel(qt.webChannelTransport, (channel) => {
             window.backend = channel.objects.backend;
@@ -59,9 +60,11 @@
                         break;
                     case "run_detections":
                         plotDots(parsedData.detections, 'detections');
+                        updateLegend('detections');
                         break;
                     case "comparisons":
                         plotDots(parsedData.comparisons, 'comparisons');
+                        updateLegend('comparisons');
                         break;
                     default:
                         break;
@@ -73,14 +76,16 @@
     function plotDots(dots, type) {
         cropLayer.clearLayers();
         weedLayer.clearLayers();
-        comparisonLayer.clearLayers();
+        stayedLayer.clearLayers();
+        removedLayer.clearLayers();
+        newLayer.clearLayers();
 
         dots.forEach(dot => {
             let latitude, longitude, detectionClass, color, layer;
 
-            [latitude, longitude, detectionClass] = dot;
-            if(type==='detections') {
-                 if (detectionClass === 0) {
+            if(type === 'detections') {
+                [latitude, longitude, detectionClass] = dot;
+                if (detectionClass === 0) {
                     color = 'blue'; // Crop
                     layer = cropLayer;
                 } else {
@@ -88,11 +93,25 @@
                     layer = weedLayer;
                 }
             } else if(type === 'comparisons') {
-                [latitude, longitude, comparisonClass] = dot;
-                color = comparisonClass === 'stayed' ? 'red' : comparisonClass === 'removed' ? 'green' : comparisonClass === 'new' ? 'purple' : 'black'
-                layer = comparisonLayer;
+                [latitude, longitude, detectionClass] = dot;
+                switch (detectionClass) {
+                    case 'stayed':
+                        color = 'red';
+                        layer = stayedLayer;
+                        break;
+                    case 'removed':
+                        color = 'green';
+                        layer = removedLayer;
+                        break;
+                    case 'new':
+                        color = 'purple';
+                        layer = newLayer;
+                        break;
+                    default:
+                        color = 'black';
+                        layer = newLayer;
+                }
             }
-
 
             const marker = L.circleMarker([latitude, longitude], {
                 radius: 1,
@@ -101,7 +120,6 @@
                 fillOpacity: 0.8
             });
             marker.addTo(layer);
-
         });
     }
 
@@ -117,7 +135,6 @@
                     }
 
                     layer.setStyle({ color: '#4070ff', weight: 5, opacity: 0.8 });
-
                     map.fitBounds(layer.getBounds());
                     lastSelectedLayer = layer;
                 }
@@ -125,41 +142,62 @@
         }
     }
 
-    // Add legend control
     let legend = L.control({ position: 'topright' });
 
-    legend.onAdd = function () {
-        let div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `
-            <strong>Legend</strong><br>
-            <span style="color: blue;">&#9679;</span> Crop <br>
-            <span style="color: red;">&#9679;</span> Weed <br>
-            <label><input type="checkbox" id="toggleCrops" checked> Show Crops</label><br>
-            <label><input type="checkbox" id="toggleWeeds" checked> Show Weeds</label>
-        `;
+    function updateLegend(type) {
+        legend.remove();
 
-        L.DomEvent.disableClickPropagation(div);
-        return div;
-    };
+        legend.onAdd = function () {
+            let div = L.DomUtil.create('div', 'legend');
 
-    legend.addTo(map);
-
-    document.addEventListener('change', (event) => {
-        if (event.target.id === 'toggleCrops') {
-            if (event.target.checked) {
-                cropLayer.addTo(map);
-            } else {
-                map.removeLayer(cropLayer);
+            if (type === 'detections') {
+                div.innerHTML = `
+                    <strong>Legend</strong><br>
+                    <span style="color: blue;">&#9679;</span> Crop <br>
+                    <span style="color: red;">&#9679;</span> Weed <br>
+                    <label><input type="checkbox" id="toggleCrops" checked> Show Crops</label><br>
+                    <label><input type="checkbox" id="toggleWeeds" checked> Show Weeds</label>
+                `;
+            } else if (type === 'comparisons') {
+                div.innerHTML = `
+                    <strong>Legend</strong><br>
+                    <span style="color: red;">&#9679;</span> Stayed <br>
+                    <span style="color: green;">&#9679;</span> Removed <br>
+                    <span style="color: purple;">&#9679;</span> New <br>
+                    <label><input type="checkbox" id="toggleStayed" checked> Show Stayed</label><br>
+                    <label><input type="checkbox" id="toggleRemoved" checked> Show Removed</label><br>
+                    <label><input type="checkbox" id="toggleNew" checked> Show New</label>
+                `;
             }
-        }
-        if (event.target.id === 'toggleWeeds') {
-            if (event.target.checked) {
-                weedLayer.addTo(map);
-            } else {
-                map.removeLayer(weedLayer);
+
+            L.DomEvent.disableClickPropagation(div);
+            return div;
+        };
+
+        legend.addTo(map);
+
+        // Attach toggle listeners after adding the legend
+        setTimeout(() => {
+            if (type === 'detections') {
+                document.getElementById('toggleCrops').addEventListener('change', (e) => {
+                    e.target.checked ? cropLayer.addTo(map) : map.removeLayer(cropLayer);
+                });
+                document.getElementById('toggleWeeds').addEventListener('change', (e) => {
+                    e.target.checked ? weedLayer.addTo(map) : map.removeLayer(weedLayer);
+                });
+            } else if (type === 'comparisons') {
+                document.getElementById('toggleStayed').addEventListener('change', (e) => {
+                    e.target.checked ? stayedLayer.addTo(map) : map.removeLayer(stayedLayer);
+                });
+                document.getElementById('toggleRemoved').addEventListener('change', (e) => {
+                    e.target.checked ? removedLayer.addTo(map) : map.removeLayer(removedLayer);
+                });
+                document.getElementById('toggleNew').addEventListener('change', (e) => {
+                    e.target.checked ? newLayer.addTo(map) : map.removeLayer(newLayer);
+                });
             }
-        }
-    });
+        }, 0);
+    }
 
     function onPolygonClick(e) {
         let layer = e.target;
@@ -189,7 +227,7 @@
             }).addTo(map);
         })
         .catch(error => console.error("Error loading GeoJSON:", error));
-
 </script>
+
 </body>
 </html>
