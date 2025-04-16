@@ -11,7 +11,7 @@ class YoloAnnotator:
         self.cfg = None
         self._load_config(config_path)
         self._init_paths()
-        cv2.namedWindow(self.window_name, cv2.WINDOW_FULLSCREEN)
+        # cv2.namedWindow(self.window_name, cv2.WINDOW_FULLSCREEN)
 
     def _load_config(self, config_path):
         """Load parameters from YAML file"""
@@ -158,14 +158,18 @@ class YoloAnnotator:
     def calibrate(self, img_path):
         """Calibrate the green values of the mask, try new values and see what happens."""
         img = cv2.imread(img_path)
+
         mask = self.extract_green_plants_mask(img)
-        resized_image = self.scale_image(70, mask)
-        cv2.imshow("Green extracted", resized_image)
-        cv2.waitKey(0)
+        # resized_image = self.scale_image(50, mask)
+        # original_image = self.scale_image(50, img)
+
+        # cv2.imshow("Green extracted", resized_image)
+        # cv2.waitKey(0)
+        return img, mask
 
 
-annotator = YoloAnnotator("config.yaml")
+# annotator = YoloAnnotator("config.yaml")
 
 # annotator.create_frames(annotator.cfg['paths']['video_folder'], annotator.images_dir, 15, 176)
 # annotator.calibrate("./images/frame170.jpg")
-annotator.annotate_images()
+# annotator.annotate_images()
