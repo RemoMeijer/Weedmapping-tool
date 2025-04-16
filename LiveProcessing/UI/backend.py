@@ -3,7 +3,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from Database.database_handler import DatabaseHandler
+    from LiveProcessing.Database.database_handler import DatabaseHandler
     from LiveProcessing.UI.mainUI import MainWindow
 
 class Backend(QObject):

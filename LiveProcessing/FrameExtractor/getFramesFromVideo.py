@@ -21,8 +21,7 @@ class VideoFrameExtractor:
 
         # Check if the video loaded successfully
         if not cap.isOpened():
-            print(f"Error: Could not open video {self.video_path}")
-            return
+            raise RuntimeError(f"Error: Could not open video {self.video_path}")
 
         frame_count = 0 # For looping through the video
         frame_save_count = self.startingNumber # For saving frames
@@ -40,11 +39,12 @@ class VideoFrameExtractor:
                 frame_save_count += 1
 
                 frame_filename = os.path.join(self.frames_folder, f"frame{frame_save_count}.jpg")
-                cv2.imwrite(frame_filename, frame)
+                success = cv2.imwrite(frame_filename, frame)
+                if not success:
+                    raise IOError(f"Error: Could not save frame {frame_save_count}")
 
             frame_count += 1
 
         # Release the video capture object for the current video
         cap.release()
-
         print(f"Extracted and saved {frame_save_count} frames from {self.video_path}.")

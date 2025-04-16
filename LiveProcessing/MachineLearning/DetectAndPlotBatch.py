@@ -6,7 +6,7 @@ import numpy as np
 from natsort import natsorted
 from ultralytics import RTDETR
 
-from Database.database_handler import DatabaseHandler
+from LiveProcessing.Database.database_handler import DatabaseHandler
 from LiveProcessing.GpsConversion.ConvertVideoToGps import GPSMapper
 
 

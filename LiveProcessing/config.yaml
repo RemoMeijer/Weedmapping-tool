@@ -1,0 +1,8 @@
+paths:
+  frames_folder: "FrameExtractor/Frames"
+  stitched_folder: "ImageStitching/batch"
+  machine_learning_model: "MachineLearning/rt-detr.pt"
+  video's_folder:  'RunVideos'
+
+video_settings:
+  frame_interval: 8

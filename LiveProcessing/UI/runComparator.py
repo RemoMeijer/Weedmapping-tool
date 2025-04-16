@@ -1,84 +1,99 @@
-from math import sqrt
+from sklearn.neighbors import KDTree
+import numpy as np
 from pyproj import Geod
 
-from Database.database_handler import DatabaseHandler
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from LiveProcessing.Database.database_handler import DatabaseHandler
 
 
 class RunComparator:
     def __init__(self, db: 'DatabaseHandler'):
         self.db = db
 
-    def is_similar(self, det1, det2, delta_cm=100):
-        # Extract latitude, longitude, and class from detections
-        lat1, lon1, class1 = det1
-        lat2, lon2, class2 = det2
-
-        # Create a Geod object (WGS84 ellipsoid is commonly used for GPS coordinates)
-        geod = Geod(ellps="WGS84")
-
-        # Calculate the geodesic distance between the two points in meters
-        _, _, distance_m = geod.inv(lon1, lat1, lon2, lat2)
-
-        # Convert delta from centimeters to meters
-        distance_cm = distance_m * 100
-
-        # Check if distance is within delta and classes are the same
-        same_type = class1 == class2
-        return abs(distance_cm) <= delta_cm and same_type
-
-    def compare_runs(self, run_id_1, run_id_2, delta=0.0002):
+    def compare_runs(self, run_id_1, run_id_2, delta_cm=10):
         """
-        Compares detections between two runs.
+        Compare detections using KDTree for faster nearest neighbor search.
 
-        Returns a dictionary with three lists:
-            - 'stayed': detections present in both runs
-            - 'removed': detections only in run 1 (missing in run 2)
-            - 'new': detections only in run 2 (absent in run 1)
+        delta_cm: maximum distance to consider detections as matching (in cm).
         """
+        # Convert delta to degrees (~1 deg ≈ 111,000 meters, so 1m ≈ 0.000009 deg)
+        # We'll use distance in meters directly in KDTree, so no need to convert to degrees
+        max_distance_m = delta_cm / 100
+
         detections_1 = self.db.get_detections_by_run_id(run_id_1)
         detections_2 = self.db.get_detections_by_run_id(run_id_2)
 
         field_1 = self.db.get_field_by_run_id(run_id_1)
         field_2 = self.db.get_field_by_run_id(run_id_2)
-        if field_1 is None or field_2 is None:
-            return
-        if field_1 != field_2:
+
+        if field_1 is None or field_2 is None or field_1 != field_2:
             print("Runs to be compared are not on equal fields!")
             return
 
-        # Make copies so we can remove matched items
-        detections_2_remaining = detections_2.copy()
+        # Convert coordinates to cartesian approximation (in meters)
+        geod = Geod(ellps="WGS84")
+
+        # Approximate local projection: treat (lat, lon) as Cartesian for small areas
+        def latlon_to_meters(ref_lat, ref_lon, lat, lon):
+            _, _, dist = geod.inv(ref_lon, ref_lat, lon, lat)
+            # Determine direction
+            if lon < ref_lon:
+                dist *= -1
+            x = dist
+            _, _, dist = geod.inv(ref_lon, ref_lat, ref_lon, lat)
+            if lat < ref_lat:
+                dist *= -1
+            y = dist
+            return (x, y)
+
+        # Use first detection as reference point
+        ref_lat, ref_lon, _ = detections_1[0]
+
+        coords_1 = []
+        for det in detections_1:
+            x, y = latlon_to_meters(ref_lat, ref_lon, det[0], det[1])
+            coords_1.append((x, y))
+
+        coords_2 = []
+        for det in detections_2:
+            x, y = latlon_to_meters(ref_lat, ref_lon, det[0], det[1])
+            coords_2.append((x, y))
+
+        tree = KDTree(coords_2)
 
         stayed = []
         removed = []
+        used_indices = set()
 
-        # For every detection in the first run, try to find a match in the second run
-        for det1 in detections_1:
+        for i, (coord1, det1) in enumerate(zip(coords_1, detections_1)):
+            if i % 100 == 0:
+                print(f"[Progress] Compared {i} out of {len(coords_1)} crops...")
+
+            # Query nearest within max_distance_m
+            indices = tree.query_radius([coord1], r=max_distance_m, return_distance=False)[0]
             match_found = False
-            for det2 in detections_2_remaining:
-                if self.is_similar(det1, det2):
-                    # Match if found, so it sadly stayed
+            for j in indices:
+                if j in used_indices:
+                    continue
+                det2 = detections_2[j]
+                if det1[2] == det2[2]:
                     stayed.append(det1)
-                    # Remove the matched detection so it isn’t matched twice
-                    detections_2_remaining.remove(det2)
+                    used_indices.add(j)
                     match_found = True
                     break
-
-            # No match found, so it's successfully removed.
             if not match_found:
                 removed.append(det1)
 
-        # After matching, any detection left in detections_2_remaining is new
-        new = detections_2_remaining
-
-        # You can also format the result as needed
+        # new = [det for i, det in enumerate(detections_2) if i not in used_indices]
+        new = []
         differences = {
             'stayed': stayed,
             'removed': removed,
             'new': new,
         }
 
-        # print(f'Compared runs: {differences}')
         self.db.add_compared_run(field_1, run_id_1, run_id_2)
         comparison_id = self.db.get_comparison_run(run_id_1, run_id_2)
 

@@ -7,9 +7,8 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QComboBox, QLabel, \
     QVBoxLayout, QTabWidget, QSpacerItem, QSizePolicy, QPushButton, QLineEdit, QHBoxLayout, QMessageBox
-from fontTools.feaLib.ast import fea_keywords
 
-from Database.database_handler import DatabaseHandler
+from LiveProcessing.Database.database_handler import DatabaseHandler
 from LiveProcessing.UI.backend import Backend
 from LiveProcessing.UI.mapHandler import MapHandler
 from LiveProcessing.UI.uiUpdater import UiUpdater
@@ -17,7 +16,7 @@ from LiveProcessing.UI.uiUpdater import UiUpdater
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from StateManager import StateManager
+    from LiveProcessing.StateManager import StateManager
 
 
 class MainWindow(QMainWindow):

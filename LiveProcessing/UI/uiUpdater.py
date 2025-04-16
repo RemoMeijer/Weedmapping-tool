@@ -3,7 +3,7 @@ from LiveProcessing.UI.runComparator import RunComparator
 
 if TYPE_CHECKING:
     from LiveProcessing.UI.mainUI import MainWindow
-    from Database.database_handler import DatabaseHandler
+    from LiveProcessing.Database.database_handler import DatabaseHandler
     from LiveProcessing.UI.backend import Backend
 
 
