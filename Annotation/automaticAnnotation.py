@@ -3,7 +3,7 @@ import numpy as np
 import yaml
 
 from pathlib import Path
-from LiveProcessing.FrameExtractor.getFramesFromVideo import VideoFrameExtractor
+from getFramesFromVideo import VideoFrameExtractor
 
 
 class YoloAnnotator:
@@ -136,7 +136,7 @@ class YoloAnnotator:
         # When done, destroy windows
         cv2.destroyAllWindows()
 
-    # # Get frames to extract from a video, using the VideoFrameExtractor class
+    # Get frames to extract from a video
     def create_frames(self, video_path, output_folder, frame_interval, starting_number):
         """Create some frames from a video.
         frame_interval is how many frames are skipped in the video, for each output frame.
@@ -167,5 +167,5 @@ class YoloAnnotator:
 annotator = YoloAnnotator("config.yaml")
 
 # annotator.create_frames(annotator.cfg['paths']['video_folder'], annotator.images_dir, 15, 176)
-annotator.calibrate("./images/frame170.jpg")
-# annotator.annotate_images()
+# annotator.calibrate("./images/frame170.jpg")
+annotator.annotate_images()

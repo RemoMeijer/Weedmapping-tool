@@ -1,10 +1,10 @@
 from typing import TYPE_CHECKING
-from LiveProcessing.UI.runComparator import RunComparator
+from UI.runComparator import RunComparator
 
 if TYPE_CHECKING:
-    from LiveProcessing.UI.mainUI import MainWindow
-    from LiveProcessing.Database.database_handler import DatabaseHandler
-    from LiveProcessing.UI.backend import Backend
+    from UI.mainUI import MainWindow
+    from Database.database_handler import DatabaseHandler
+    from UI.backend import Backend
 
 
 class UiUpdater:

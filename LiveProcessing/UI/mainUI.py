@@ -8,10 +8,10 @@ from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QFrame, QComboBox, QLabel, \
     QVBoxLayout, QTabWidget, QSpacerItem, QSizePolicy, QPushButton, QLineEdit, QHBoxLayout, QMessageBox
 
-from LiveProcessing.Database.database_handler import DatabaseHandler
-from LiveProcessing.UI.backend import Backend
-from LiveProcessing.UI.mapHandler import MapHandler
-from LiveProcessing.UI.uiUpdater import UiUpdater
+from Database.database_handler import DatabaseHandler
+from UI.backend import Backend
+from UI.mapHandler import MapHandler
+from UI.uiUpdater import UiUpdater
 
 from typing import TYPE_CHECKING
 
