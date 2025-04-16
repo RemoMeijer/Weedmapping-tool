@@ -241,3 +241,8 @@ fabric.properties
 *.avi
 *.wmv
 *.webm
+
+LiveProcessing/UI/node_modules/*
+
+LiveProcessing/UI/package-lock.json
+LiveProcessing/UI/package.json
