@@ -4,6 +4,7 @@ import yaml
 
 from pathlib import Path
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage, QPixmap
 
 from getFramesFromVideo import VideoFrameExtractor
@@ -34,45 +35,22 @@ class YoloAnnotator:
         self.annotations_output_dir = Path(self.cfg['paths']['annotations_dir'])
         self.annotations_output_dir.mkdir(parents=True, exist_ok=True)
 
-    def extract_green_plants_mask_from_yaml(self, img):
-        """Generate mask for green areas using configured thresholds"""
+    def extract_green_plants_mask(self, img, red_min, red_max, green_min, green_max, blue_min, blue_max, red_threshold):
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         red, green, blue = img_rgb[:, :, 0], img_rgb[:, :, 1], img_rgb[:, :, 2]
 
-        # Create refined mask for defined green areas
-        thresholds = self.cfg['thresholds']
         mask = (
-                       (green > red + thresholds['red_boundary']) &
+                       (green > red + red_threshold) &
                        (green > blue) &
-                       (green > thresholds['green_min']) &
-                       (green < thresholds['green_max']) &
-                       (red < thresholds['red_max']) &
-                       (blue < thresholds['blue_max'])
+                       (red > red_min) &
+                       (red < red_max) &
+                       (green > green_min) &
+                       (green < green_max) &
+                       (blue > blue_min) &
+                       (blue < blue_max)
                ).astype(np.uint8) * 255
 
-        # Remove some graining with Erode and Dilate etc.
-        kernel = np.ones((5, 5), np.uint8)
-        green_mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, kernel,
-                                      iterations=1)  # Can finetune this, maybe this or one more
-
-        return green_mask
-
-    def extract_green_plants_mask(self, img,  red_min, red_max, green_min, green_max, blue_min, blue_max, red_threshold):
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        red, green, blue = img_rgb[:, :, 0], img_rgb[:, :, 1], img_rgb[:, :, 2]
-
-        mask = (
-            (green > red + red_threshold) &
-            (green > blue) &
-            (red > red_min) &
-            (red < red_max) &
-            (green > green_min) &
-            (green < green_max) &
-            (blue > blue_min) &
-            (blue < blue_max)
-        ).astype(np.uint8) * 255
-
-        kernel = np.ones((5, 5), np.uint8)
+        kernel = np.ones((3, 3), np.uint8)
         green_mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, kernel,
                                       iterations=1)
 
@@ -122,17 +100,22 @@ class YoloAnnotator:
         q_img = QImage(cv_img.data, width, height, bytes_per_line, QImage.Format.Format_RGB888).rgbSwapped()
         return QPixmap.fromImage(q_img)
 
-    def process_contour(self, cnt, img):
-        "Process the contour and return the class, and if we want to keep this contour"
+    def process_contour_pixmap(self, cnt, img, label_widget):
         img_copy = img.copy()
         cv2.drawContours(img_copy, [cnt], -1, (0, 0, 255), thickness=2)  # BGR colour!!
 
         # Resize for the display
         resized_img = self.scale_image(self.cfg['display']['scale_percent'], img_copy)
-        cv2.imshow(self.window_name, resized_img)
-        cv2.waitKey(1)
+        pixmap = self.cv_img_to_qpixmap(resized_img)
 
-        # Get user input
+        label_widget.setPixmap(
+            pixmap.scaled(
+                label_widget.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+        )
+
         while True:
             user_class = input("Enter class: 1-crop, 2-weed, 3-skip. ")
             if user_class in self.cfg['classes']['mapping']:
@@ -147,6 +130,53 @@ class YoloAnnotator:
         points = contour.squeeze()
         normalized = [f"{x / w:.6f} {y / h:.6f}" for x, y in points]
         return " ".join(normalized)
+
+    def get_contours(self, calibration_values, image_label):
+        thresholds = {
+            "red_min": calibration_values["red"]["min"].value(),
+            "red_max": calibration_values["red"]["max"].value(),
+            "green_min": calibration_values["green"]["min"].value(),
+            "green_max": calibration_values["green"]["max"].value(),
+            "blue_min": calibration_values["blue"]["min"].value(),
+            "blue_max": calibration_values["blue"]["max"].value(),
+            "red_boundary": calibration_values["red_calibration"]["calibration"].value()
+        }
+
+        for img_name in self.images_dir.glob("*.jpg"):
+            img = cv2.imread(img_name)
+
+            if img is None:
+                print(f"Image {img_name} not found.")
+                continue
+
+            processed_mask = self.extract_green_plants_mask(
+                img,
+                thresholds["red_min"],
+                thresholds["red_max"],
+                thresholds["green_min"],
+                thresholds["green_max"],
+                thresholds["blue_min"],
+                thresholds["blue_max"],
+                thresholds["red_boundary"]
+            )
+            contours, _ = cv2.findContours(processed_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            contours = list(contours)
+
+            annotations = []
+
+            for cnt in contours:
+                if cv2.contourArea(cnt) < self.cfg['thresholds']['min_area']:
+                    continue
+
+                class_name, keep = self.process_contour_pixmap(cnt, img, image_label)
+
+                if not keep:
+                    print("Removed contour.")
+                    continue
+
+                yolo_annotation = f"{self.cfg['classes']['ids'][class_name]} " + self.contour_to_yolo(cnt,
+                                                                                                      img.shape[:2])
+                annotations.append(yolo_annotation)
 
     # Main loop for annotation
     def annotate_images(self):
@@ -193,7 +223,8 @@ class YoloAnnotator:
                     print("Removed contour.")
                     continue
 
-                yolo_annotation = f"{self.cfg['classes']['ids'][class_name]} " + self.contour_to_yolo(cnt, img.shape[:2])
+                yolo_annotation = f"{self.cfg['classes']['ids'][class_name]} " + self.contour_to_yolo(cnt,
+                                                                                                      img.shape[:2])
                 annotations.append(yolo_annotation)
 
             # Write the annotations per image in txt file
@@ -208,7 +239,7 @@ class YoloAnnotator:
     def create_frames(self, video_path, output_folder, frame_interval, starting_number):
         """Create some frames from a video.
         frame_interval is how many frames are skipped in the video, for each output frame.
-        starting_number is to prevent overwrites of existing frames. eg. if frame_10 exists, you want to start at 11 for the new frames."""
+        starting_number is to prevent overwrites of existing frames. e.g. if frame_10 exists, you want to start at 11 for the new frames."""
         extractor = VideoFrameExtractor(video_path=video_path, frames_folder=output_folder,
                                         frame_interval=frame_interval,
                                         starting_number=starting_number)
@@ -221,23 +252,20 @@ class YoloAnnotator:
         height = int(img.shape[0] * scale_percentage / 100)
         return cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
 
-
     # For calibration
-    def calibrate(self, img_path):
-        """Calibrate the green values of the mask, try new values and see what happens."""
+    def calibrate(self, img_path, thresholds):
+        """Calibrate the green values of the mask"""
+
         img = cv2.imread(img_path)
-
-        mask = self.extract_green_plants_mask_from_yaml(img)
-        # resized_image = self.scale_image(50, mask)
-        # original_image = self.scale_image(50, img)
-
-        # cv2.imshow("Green extracted", resized_image)
-        # cv2.waitKey(0)
+        mask = self.extract_green_plants_mask(
+                img,
+                thresholds["red_min"],
+                thresholds["red_max"],
+                thresholds["green_min"],
+                thresholds["green_max"],
+                thresholds["blue_min"],
+                thresholds["blue_max"],
+                thresholds["red_boundary"]
+            )
         return img, mask
 
-
-# annotator = YoloAnnotator("config.yaml")
-
-# annotator.create_frames(annotator.cfg['paths']['video_folder'], annotator.images_dir, 15, 176)
-# annotator.calibrate("./images/frame170.jpg")
-# annotator.annotate_images()

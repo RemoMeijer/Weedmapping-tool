@@ -4,7 +4,7 @@ import numpy as np
 from PyQt6.QtGui import QFont, QImage, QPixmap
 from PyQt6.QtWidgets import (
     QMainWindow, QFrame, QVBoxLayout, QWidget, QGridLayout, QApplication,
-    QLabel, QSizePolicy, QHBoxLayout, QSlider
+    QLabel, QSizePolicy, QHBoxLayout, QSlider, QTabWidget, QPushButton
 )
 from PyQt6.QtCore import Qt
 from automaticAnnotation import YoloAnnotator
@@ -32,7 +32,9 @@ class MainWindow(QMainWindow):
 
         # Annotator and images
         self.annotator = YoloAnnotator("config.yaml")
-        original_image, calibrated_image = self.annotator.calibrate("./images/frame170.jpg")
+        thresholds = self.config_values["thresholds"]
+        print("thresholds: ", thresholds)
+        original_image, calibrated_image = self.annotator.calibrate("./images/frame170.jpg", thresholds)
 
         # QLabel widgets for images
         self.top_image_label = QLabel()
@@ -81,16 +83,20 @@ class MainWindow(QMainWindow):
         settings_frame.setStyleSheet(f"background-color: {self.background_light}")
 
         layout = QVBoxLayout(settings_frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        layout.addWidget(self.create_min_max_slider("Red"))
-        layout.addWidget(self.create_min_max_slider("Green"))
-        layout.addWidget(self.create_min_max_slider("Blue"))
+        tabs = QTabWidget(settings_frame)
+        tabs.setStyleSheet(f"background-color: {self.background_light}; color: {self.text_color};")
 
-        layout.addSpacing(5)
+        calibrate_tab = self.create_tab("Calibrate")
+        annotate_tab = self.create_tab("Annotate")
 
-        layout.addWidget(self.create_calibration_sliders("Red"))
+        tabs.addTab(calibrate_tab, "Calibrate")
+        tabs.addTab(annotate_tab, "Annotate")
 
-        layout.addStretch()
+        layout.addWidget(tabs)
+
         return settings_frame
 
     def image_frame(self):
@@ -164,7 +170,6 @@ class MainWindow(QMainWindow):
         slider_min_widget, slider_min = self.create_slider(initial_min)
         slider_max_widget, slider_max = self.create_slider(initial_max)
 
-
         # Save sliders
         self.calibration_values[color.lower()] = {
             "min": slider_min,
@@ -208,6 +213,47 @@ class MainWindow(QMainWindow):
                 Qt.TransformationMode.SmoothTransformation
             )
         )
+
+    def create_tab(self, label_text):
+        tab = QWidget()
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        tab_layout.setSpacing(10)
+        tab_layout.setContentsMargins(10, 10, 10, 10)
+
+        if label_text == "Calibrate":
+            self.define_calibrate_tab(tab_layout)
+            return tab
+        if label_text == "Annotate":
+            self.define_annotate_tab(tab_layout)
+            return tab
+        return None
+
+    def define_calibrate_tab(self, tab_layout):
+        tab_layout.addWidget(self.create_min_max_slider("Red"))
+        tab_layout.addWidget(self.create_min_max_slider("Green"))
+        tab_layout.addWidget(self.create_min_max_slider("Blue"))
+
+        tab_layout.addSpacing(5)
+
+        tab_layout.addWidget(self.create_calibration_sliders("Red"))
+
+        tab_layout.addStretch()
+
+        return tab_layout
+
+    def define_annotate_tab(self, tab_layout):
+        annotate_button = QPushButton("Annotate")
+        annotate_button.setStyleSheet(f"color: {self.text_color}")
+        annotate_button.clicked.connect(self.annotate_images)
+
+        tab_layout.addWidget(annotate_button)
+        return tab_layout
+
+
+    def annotate_images(self):
+        contours = self.annotator.get_contours(self.calibration_values, self.top_image_label)
+        print(contours)
 
 
 if __name__ == "__main__":
