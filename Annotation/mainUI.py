@@ -1,5 +1,6 @@
 import sys
 import cv2
+import numpy as np
 from PyQt6.QtGui import QFont, QImage, QPixmap
 from PyQt6.QtWidgets import (
     QMainWindow, QFrame, QVBoxLayout, QWidget, QGridLayout, QApplication,
@@ -7,13 +8,18 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from automaticAnnotation import YoloAnnotator
+import yaml
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, config_path):
         super().__init__()
 
         self.calibration_values = {}
+
+        self.config_values = None
+        self._load_config(config_path)
+
 
         # Define colors
         self.text_color = 'rgb(188, 190, 196)'
@@ -25,8 +31,8 @@ class MainWindow(QMainWindow):
         self.small_font = QFont("Courier New", 15)
 
         # Annotator and images
-        annotator = YoloAnnotator("config.yaml")
-        original_image, calibrated_image = annotator.calibrate("./images/frame170.jpg")
+        self.annotator = YoloAnnotator("config.yaml")
+        original_image, calibrated_image = self.annotator.calibrate("./images/frame170.jpg")
 
         # QLabel widgets for images
         self.top_image_label = QLabel()
@@ -39,8 +45,8 @@ class MainWindow(QMainWindow):
         self.bottom_image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Store original QPixmaps
-        self.original_pixmap = self.cv_img_to_qpixmap(original_image)
-        self.calibrated_pixmap = self.cv_img_to_qpixmap(calibrated_image)
+        self.original_pixmap = self.annotator.cv_img_to_qpixmap(original_image)
+        self.calibrated_pixmap = self.annotator.cv_img_to_qpixmap(calibrated_image)
 
         # Initial set (will be scaled in resizeEvent)
         self.top_image_label.setPixmap(self.original_pixmap)
@@ -51,10 +57,18 @@ class MainWindow(QMainWindow):
         self.main_ui()
         self.showMaximized()
 
+    def _load_config(self, config_path):
+        with open(config_path, 'r') as f:
+            self.config_values = yaml.safe_load(f)
+
+        required_sections = ["paths", "thresholds", "classes"]
+        if not all(section in self.config_values for section in required_sections):
+            raise ValueError(f"Config missing required sections: {required_sections}")
+
     def main_ui(self):
-        centralWidget = QWidget(self)
-        self.setCentralWidget(centralWidget)
-        grid = QGridLayout(centralWidget)
+        central_widget = QWidget(self)
+        self.setCentralWidget(central_widget)
+        grid = QGridLayout(central_widget)
 
         grid.addWidget(self.settings_frame(), 0, 0)
         grid.addWidget(self.image_frame(), 0, 1)
@@ -68,9 +82,13 @@ class MainWindow(QMainWindow):
 
         layout = QVBoxLayout(settings_frame)
 
-        layout.addWidget(self.create_color_slider("Red"))
-        layout.addWidget(self.create_color_slider("Green"))
-        layout.addWidget(self.create_color_slider("Blue"))
+        layout.addWidget(self.create_min_max_slider("Red"))
+        layout.addWidget(self.create_min_max_slider("Green"))
+        layout.addWidget(self.create_min_max_slider("Blue"))
+
+        layout.addSpacing(5)
+
+        layout.addWidget(self.create_calibration_sliders("Red"))
 
         layout.addStretch()
         return settings_frame
@@ -84,16 +102,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.bottom_image_label, stretch=1)
         return image_frame
 
-    def cv_img_to_qpixmap(self, cv_img):
-        if len(cv_img.shape) == 2:  # grayscale
-            cv_img = cv2.cvtColor(cv_img, cv2.COLOR_GRAY2RGB)
-        elif cv_img.shape[2] == 1:  # single channel
-            cv_img = cv2.cvtColor(cv_img, cv2.COLOR_GRAY2RGB)
-
-        height, width, channel = cv_img.shape
-        bytes_per_line = 3 * width
-        q_img = QImage(cv_img.data, width, height, bytes_per_line, QImage.Format.Format_RGB888).rgbSwapped()
-        return QPixmap.fromImage(q_img)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -115,54 +123,95 @@ class MainWindow(QMainWindow):
                 )
             )
 
-    def create_color_slider(self, color):
+    def create_slider(self, initial_value=0):
         slider_frame = QFrame()
-        h_layout = QHBoxLayout(slider_frame)
+        layout = QHBoxLayout(slider_frame)
+
+        # Min slider
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setRange(0, 255)
+        slider.setValue(initial_value)
+
+        # Labels showing values
+        label = QLabel(str(initial_value))
+        label.setStyleSheet(f"color: {self.text_color}")
+
+        # Connect updates
+        slider.valueChanged.connect(lambda value: (
+            label.setText(str(value)),
+            self.update_mask()
+        ))
+
+        layout.addWidget(slider)
+        layout.addWidget(label)
+
+        return slider_frame, slider
+
+    def create_min_max_slider(self, color):
+        threshold = self.config_values["thresholds"]
+        initial_min = threshold[f"{color.lower()}_min"]
+        initial_max = threshold[f"{color.lower()}_max"]
+
+
+        container = QFrame(self)
+        slider_box = QHBoxLayout(container)
 
         label = QLabel(color)
         label.setFont(self.small_font)
         label.setStyleSheet(f"color: {self.text_color}")
         label.setFixedWidth(80)
 
+        slider_min_widget, slider_min = self.create_slider(initial_min)
+        slider_max_widget, slider_max = self.create_slider(initial_max)
 
-        # Min slider
-        min_slider = QSlider(Qt.Orientation.Horizontal)
-        min_slider.setRange(0, 255)
-        min_slider.setValue(0)
-
-        # Max slider
-        max_slider = QSlider(Qt.Orientation.Horizontal)
-        max_slider.setRange(0, 255)
-        max_slider.setValue(255)
-
-        # Labels showing values
-        min_label = QLabel("0")
-        max_label = QLabel("255")
-        min_label.setStyleSheet(f"color: {self.text_color}")
-        max_label.setStyleSheet(f"color: {self.text_color}")
-
-        # Connect updates
-        min_slider.valueChanged.connect(lambda value: min_label.setText(str(value)))
-        max_slider.valueChanged.connect(lambda value: max_label.setText(str(value)))
 
         # Save sliders
         self.calibration_values[color.lower()] = {
-            "min": min_slider,
-            "max": max_slider
+            "min": slider_min,
+            "max": slider_max,
         }
 
-        # Add widgets to layout
-        h_layout.addWidget(label)
-        h_layout.addWidget(min_slider)
-        h_layout.addWidget(min_label)
-        h_layout.addSpacing(3)
-        h_layout.addWidget(max_slider)
-        h_layout.addWidget(max_label)
+        slider_box.addWidget(label)
+        slider_box.addWidget(slider_min_widget)
+        slider_box.addWidget(slider_max_widget)
+        return container
 
-        return slider_frame
+    def create_calibration_sliders(self, name):
+        thresholds = self.config_values["thresholds"]
+        initial_value = thresholds[f"{name.lower()}_boundary"]
+
+        container = QFrame(self)
+        slider_box = QHBoxLayout(container)
+
+        label = QLabel(name + " calibration")
+        label.setFont(self.small_font)
+        label.setStyleSheet(f"color: {self.text_color}")
+        label.setFixedWidth(200)
+
+        slider_value_widget, slider_value = self.create_slider(initial_value)
+
+        self.calibration_values[f"{name.lower()}_calibration"] = {
+            "calibration": slider_value
+        }
+
+        slider_box.addWidget(label)
+        slider_box.addWidget(slider_value_widget)
+        return container
+
+    def update_mask(self):
+        self.calibrated_pixmap = self.annotator.update_mask(self.calibration_values, self.top_image_label.pixmap().toImage())
+
+        self.bottom_image_label.setPixmap(
+            self.calibrated_pixmap.scaled(
+                self.bottom_image_label.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+        )
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = MainWindow()
+    window = MainWindow("config.yaml")
     window.show()
     sys.exit(app.exec())

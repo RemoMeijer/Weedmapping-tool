@@ -3,6 +3,9 @@ import numpy as np
 import yaml
 
 from pathlib import Path
+
+from PyQt6.QtGui import QImage, QPixmap
+
 from getFramesFromVideo import VideoFrameExtractor
 
 
@@ -31,7 +34,7 @@ class YoloAnnotator:
         self.annotations_output_dir = Path(self.cfg['paths']['annotations_dir'])
         self.annotations_output_dir.mkdir(parents=True, exist_ok=True)
 
-    def extract_green_plants_mask(self, img):
+    def extract_green_plants_mask_from_yaml(self, img):
         """Generate mask for green areas using configured thresholds"""
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         red, green, blue = img_rgb[:, :, 0], img_rgb[:, :, 1], img_rgb[:, :, 2]
@@ -53,6 +56,71 @@ class YoloAnnotator:
                                       iterations=1)  # Can finetune this, maybe this or one more
 
         return green_mask
+
+    def extract_green_plants_mask(self, img,  red_min, red_max, green_min, green_max, blue_min, blue_max, red_threshold):
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        red, green, blue = img_rgb[:, :, 0], img_rgb[:, :, 1], img_rgb[:, :, 2]
+
+        mask = (
+            (green > red + red_threshold) &
+            (green > blue) &
+            (red > red_min) &
+            (red < red_max) &
+            (green > green_min) &
+            (green < green_max) &
+            (blue > blue_min) &
+            (blue < blue_max)
+        ).astype(np.uint8) * 255
+
+        kernel = np.ones((5, 5), np.uint8)
+        green_mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, kernel,
+                                      iterations=1)
+
+        return green_mask
+
+    def update_mask(self, calibration_values, original_img):
+        thresholds = {
+            "red_min": calibration_values["red"]["min"].value(),
+            "red_max": calibration_values["red"]["max"].value(),
+            "green_min": calibration_values["green"]["min"].value(),
+            "green_max": calibration_values["green"]["max"].value(),
+            "blue_min": calibration_values["blue"]["min"].value(),
+            "blue_max": calibration_values["blue"]["max"].value(),
+            "red_boundary": calibration_values["red_calibration"]["calibration"].value()
+        }
+        width = original_img.width()
+        height = original_img.height()
+        ptr = original_img.bits()
+        ptr.setsize(height * width * 4)
+        arr = np.array(ptr).reshape((height, width, 4))
+        img_bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+
+        # Generate new mask
+        mask = self.extract_green_plants_mask(
+            img_bgr,
+            thresholds["red_min"],
+            thresholds["red_max"],
+            thresholds["green_min"],
+            thresholds["green_max"],
+            thresholds["blue_min"],
+            thresholds["blue_max"],
+            thresholds["red_boundary"]
+        )
+
+        # Convert mask to pixmap and return
+        qimg = QImage(mask.data, mask.shape[1], mask.shape[0], mask.strides[0], QImage.Format.Format_Grayscale8)
+        return QPixmap.fromImage(qimg)
+
+    def cv_img_to_qpixmap(self, cv_img):
+        if len(cv_img.shape) == 2:  # grayscale
+            cv_img = cv2.cvtColor(cv_img, cv2.COLOR_GRAY2RGB)
+        elif cv_img.shape[2] == 1:  # single channel
+            cv_img = cv2.cvtColor(cv_img, cv2.COLOR_GRAY2RGB)
+
+        height, width, channel = cv_img.shape
+        bytes_per_line = 3 * width
+        q_img = QImage(cv_img.data, width, height, bytes_per_line, QImage.Format.Format_RGB888).rgbSwapped()
+        return QPixmap.fromImage(q_img)
 
     def process_contour(self, cnt, img):
         "Process the contour and return the class, and if we want to keep this contour"
@@ -105,7 +173,7 @@ class YoloAnnotator:
                 first_image = False
 
             # Get the green plants from image
-            processed_mask = self.extract_green_plants_mask(img)
+            processed_mask = self.extract_green_plants_mask_from_yaml(img)
 
             # Find contours
             contours, _ = cv2.findContours(processed_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -159,7 +227,7 @@ class YoloAnnotator:
         """Calibrate the green values of the mask, try new values and see what happens."""
         img = cv2.imread(img_path)
 
-        mask = self.extract_green_plants_mask(img)
+        mask = self.extract_green_plants_mask_from_yaml(img)
         # resized_image = self.scale_image(50, mask)
         # original_image = self.scale_image(50, img)
 

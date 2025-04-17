@@ -4,9 +4,11 @@ paths:
   video_folder: "./DoneVideos/zed1_2024-07-18_12h-00m-25s-485_top.mp4"
 thresholds:
   red_boundary: 14
+  red_min: 0
+  red_max: 200
   green_min: 50
   green_max: 250
-  red_max: 200
+  blue_min: 0
   blue_max: 100
   min_area: 600
 
