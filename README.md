@@ -49,4 +49,3 @@ installeer Leaflet.js: ```npm install leaflet```
 Om het programma te starten, zorg voor de correcte pip installaties.
 
 ```python3 StateManager.py```
-
