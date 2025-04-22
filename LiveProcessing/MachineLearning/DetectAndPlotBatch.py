@@ -9,7 +9,7 @@ from ultralytics import RTDETR
 from Database.database_handler import DatabaseHandler
 from GpsConversion.ConvertVideoToGps import GPSMapper
 
-
+"""Machine learning detects on the batches created by the stitching. It works with the offset to create detections of the entire video"""
 class BatchProcessor:
     def __init__(self, batch_folder, offset_file, model_file, field_id, distance_threshold=0, crop='gras'):
         self.batch_folder = batch_folder
@@ -17,6 +17,8 @@ class BatchProcessor:
         self.model_file = model_file
         self.field_id = field_id
         self.crop = crop
+
+        # How much overlap is allowed, batches share one image, so detection overlap in the shared image is possible
         self.distance_threshold = distance_threshold
 
         # Load model

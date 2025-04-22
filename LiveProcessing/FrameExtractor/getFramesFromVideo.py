@@ -2,7 +2,7 @@ import cv2
 import os
 import shutil
 
-
+"""Generates frames from a mp4 file in the given folder"""
 class VideoFrameExtractor:
     def __init__(self, video_path, frames_folder, frame_interval, starting_number=0):
         self.video_path = video_path

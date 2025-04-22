@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from LiveProcessing.UI.backend import Backend
 
+"""Handles interactions from UI to the map"""
+# todo maybe redundant and move to backend.py?
 class MapHandler:
     def __init__(self, backend: 'Backend'):
         self.backend: Backend = backend

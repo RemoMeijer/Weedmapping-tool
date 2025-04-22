@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from LiveProcessing.Database.database_handler import DatabaseHandler
 
-
+"""Compare two runs and make a compared run with comparisons in the database"""
 class RunComparator:
     def __init__(self, db: 'DatabaseHandler'):
         self.db = db
@@ -86,8 +86,9 @@ class RunComparator:
             if not match_found:
                 removed.append(det1)
 
-        # new = [det for i, det in enumerate(detections_2) if i not in used_indices]
-        new = []
+        # todo figure this part out
+        new = [det for i, det in enumerate(detections_2) if i not in used_indices]
+        # new = []
         differences = {
             'stayed': stayed,
             'removed': removed,

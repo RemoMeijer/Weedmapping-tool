@@ -6,6 +6,7 @@ if TYPE_CHECKING:
     from LiveProcessing.Database.database_handler import DatabaseHandler
     from LiveProcessing.UI.mainUI import MainWindow
 
+"""Handle data interaction between UI and map, using pyqtSignals"""
 class Backend(QObject):
     # Signal to send data from Python to JavaScript
     send_data_to_js = pyqtSignal(str)

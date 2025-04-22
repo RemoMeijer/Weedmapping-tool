@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from Database.database_handler import DatabaseHandler
     from UI.backend import Backend
 
-
+"""Update the UI dropdowns with new information etc."""
 class UiUpdater:
     def __init__(self, main_window: 'MainWindow', db: 'DatabaseHandler', back_end: 'Backend'):
         self.main_window: MainWindow = main_window
@@ -113,9 +113,8 @@ class UiUpdater:
         except ValueError:
             print("GPS coordinates must be numbers")
 
+    """Validate GPS coordinates are within Earth's ranges"""
     def validate_coordinates(self, lat1, lon1, lat2, lon2):
-        """Validate GPS coordinates are within Earth's ranges"""
-
         def is_valid(lat, lon):
             try:
                 lat = float(lat)

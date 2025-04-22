@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from LiveProcessing.StateManager import StateManager
 
-
+"""Main UI component for the UI"""
 class MainWindow(QMainWindow):
     def __init__(self, state_manager: 'StateManager', video_folder):
         super().__init__()
@@ -106,6 +106,8 @@ class MainWindow(QMainWindow):
         grid.setColumnStretch(0, 2)
         grid.setColumnStretch(1, 5)
 
+
+    """Left part of the UI with all the info and settings"""
     def settings_frame(self):
         settings_frame = QFrame()
         settings_frame.setStyleSheet(f"background-color: {self.background_light};")
@@ -130,6 +132,7 @@ class MainWindow(QMainWindow):
 
         return settings_frame
 
+    """Creates all the tabs in the info panel"""
     def create_tab(self, label_text):
         # Create tab of settings frame
         tab = QWidget()
@@ -154,10 +157,12 @@ class MainWindow(QMainWindow):
             self.define_crops_dropdown(label, tab_layout)
             return tab
 
+    """When clicked on field dropdown, goto that filed on the map"""
     def goto_field(self):
         field_name = self.all_fields_dropdown.currentText().strip("Field_")
         self.mapHandler.goto_field(field_name)
 
+    """Defines the fields tab"""
     def define_field_tab(self, tab_layout):
         self.all_fields_dropdown.currentIndexChanged.connect(self.goto_field)
         self.runs_in_field_dropdown.currentIndexChanged.connect(self.backend.send_run_detections_from_fields_tab)
@@ -193,6 +198,7 @@ class MainWindow(QMainWindow):
 
         return tab_layout
 
+    """Define the layout of information shown of field"""
     def define_info_section(self):
         info_layout = QVBoxLayout()
 
@@ -209,8 +215,8 @@ class MainWindow(QMainWindow):
 
         return info_layout
 
+    """Helper method to create an HBox layout with a fixed label and a value label."""
     def _create_info_row(self, label_text, value_label):
-        """Helper method to create an HBox layout with a fixed label and a value label."""
         layout = QHBoxLayout()
         label = self.make_label(label_text)
 
@@ -340,7 +346,7 @@ class MainWindow(QMainWindow):
             self.uiManager.update_dropdowns()
 
     def define_crops_dropdown(self, label, tab_layout):
-        # todo
+        # todo find a usage of the crops, or remove
         dropdown = self.all_crops_dropdown
         tab_layout.addWidget(label)
         tab_layout.addWidget(dropdown)
@@ -378,5 +384,6 @@ class MainWindow(QMainWindow):
 
         return self.map_frame
 
+    """Handle field changes, so update all the dropdowns and information"""
     def handle_field_update(self, field_data):
         self.uiManager.update_ui(field_data)

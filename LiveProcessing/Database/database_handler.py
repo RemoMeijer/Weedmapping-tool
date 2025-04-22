@@ -6,6 +6,7 @@ import os
 
 class DatabaseHandler:
     def __init__(self):
+        """Get the db file and initialize"""
         script_dir = os.path.dirname(os.path.abspath(__file__))
         database_name = os.path.join(script_dir, 'detections.db')
         self.conn = sqlite3.connect(database_name)
@@ -14,6 +15,7 @@ class DatabaseHandler:
         self._initialize_db()
 
     def _initialize_db(self):
+        """Initialize the db with its Tables etc."""
         # Create Fields table
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS Fields (
@@ -83,11 +85,12 @@ class DatabaseHandler:
         self.conn.commit()
 
     def create_new_run(self):
-        # Generate a unique run_id
+        """Create a new run with the datetime as its name"""
         run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         return run_id
 
     def get_comparison_run(self, run_1, run_2):
+        """Get two runs from a comparison"""
         self.cursor.execute('''
         SELECT id FROM ComparedRuns
         WHERE run1 = ? AND run2 = ?
@@ -148,6 +151,7 @@ class DatabaseHandler:
             print(f"Run ID '{run_id}' already exists.")
 
     def add_compared_run(self, field_id, run1, run2):
+        """Add a compared run with two run id's"""
         try:
             self.cursor.execute('''
                 INSERT INTO ComparedRuns (field_id, run1, run2)
@@ -158,6 +162,7 @@ class DatabaseHandler:
             print(f"Compared Run already exists.")
 
     def add_comparison(self, compared_id, x_coordinate, y_coordinate, comparison_class):
+        """Add a comparison with the comparison_run and coordinates"""
         try:
             self.cursor.execute('''
             INSERT INTO Comparison (compared_run_id, x_coordinate, y_coordinate, class)
@@ -265,7 +270,7 @@ class DatabaseHandler:
         return [row[0] for row in self.cursor.fetchall()]
 
     def close_db(self):
-        # Close the database connection
+        """Close the database connection"""
         self.conn.close()
 
     def get_detections_by_run_id(self, run_id):
@@ -288,7 +293,7 @@ class DatabaseHandler:
         self.conn.commit()
 
     def delete_all_runs_and_detections(self):
-        # Never touch this one lol
+        # Never touch this one!!
         """Delete all rows from Runs and Detections tables."""
         self.cursor.execute('DELETE FROM Detections')
         self.cursor.execute('DELETE FROM Comparison')
@@ -298,10 +303,7 @@ class DatabaseHandler:
         self.conn.commit()
 
     def import_geojson_data(self, geojson_path):
-        """
-        Import fields and crops from a GeoJSON file
-        Skips geometry data as requested
-        """
+        """Import fields and crops from a GeoJSON file"""
         with open(geojson_path, 'r') as f:
             geojson_data = json.load(f)
 
@@ -318,7 +320,7 @@ class DatabaseHandler:
                 self.add_field(field_name)
                 seen_fields.add(field_id)
 
-            # Add crop (using 'gewas' from properties)
+            # Add crop
             crop_name = props.get('gewas')
             if crop_name and crop_name not in seen_crops:
                 self.add_crop(crop_name.strip())  # Clean up whitespace

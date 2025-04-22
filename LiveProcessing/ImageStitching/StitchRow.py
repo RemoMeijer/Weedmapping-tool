@@ -6,7 +6,7 @@ from pathlib import Path
 from natsort import natsorted
 from stitching import Stitcher
 
-
+"""Stitches multiple images to one image, and puts it in the given temp_folder"""
 class ImageStitcher:
     def __init__(self, source_folder, result_folder, json_file_path, temp_folder='TempFrames2', batch_size=5):
         self.source_folder = source_folder
