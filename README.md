@@ -1,6 +1,6 @@
 # Handleiding systeem
 Voor het gebruiken van dit project, maak een -venv aan en installeer de requirements met ```pip install -r requirements.txt```
-Dit installeert alle benodigde pacakges die gebruikt worden. 
+Dit installeert alle benodigde packages die gebruikt worden in het project. 
 
 
 Het systeem is in drie delen opgedeeld, namelijk
